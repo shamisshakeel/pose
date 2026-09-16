@@ -1,453 +1,1541 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#09090b">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>PoseCam Pro — Camera Pose Overlay</title>
+
+<!-- ===================== PWA META ===================== -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="PoseFlow">
-<meta name="description" content="Advanced pose reference camera with custom pose library, live overlay, framing guides and high-resolution capture.">
-<link rel="manifest" id="manifest">
-<title>PoseFlow — Advanced Pose Camera</title>
+<meta name="apple-mobile-web-app-title" content="PoseCam">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0d">
+<meta name="description" content="Match your pose to a reference photo using your camera, live overlay guidance, and on-device AI pose detection. 100% private, works offline.">
+
+<!-- Single-file data-URI manifest -->
+<link rel="manifest" id="manifest-link" href="">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230a0a0d'/%3E%3Ccircle cx='256' cy='190' r='72' fill='%23818cf8'/%3E%3Cpath d='M140 420c0-90 52-150 116-150s116 60 116 150' fill='none' stroke='%23818cf8' stroke-width='28' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%230a0a0d'/%3E%3Ccircle cx='256' cy='190' r='72' fill='%23818cf8'/%3E%3Cpath d='M140 420c0-90 52-150 116-150s116 60 116 150' fill='none' stroke='%23818cf8' stroke-width='28' stroke-linecap='round'/%3E%3C/svg%3E">
+
+<!-- ===================== CDN LIBRARIES ===================== -->
+<!-- Tailwind (utility CSS) - official browser runtime -->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<!-- Lucide icons (UMD build exposes window.lucide.createIcons) -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<!-- MediaPipe Pose (on-device AI body landmark detection, optional / advanced feature) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous" onerror="window.__MP_FAILED__=true"></script>
+
 <style>
-:root{
-  --bg:#09090b;--surface:#111114;--surface2:#18181c;--surface3:#222228;
-  --line:#2b2b32;--text:#f8f8fa;--muted:#a1a1aa;--accent:#8b7cff;
-  --accent2:#6d5dfc;--good:#34d399;--danger:#fb7185;--warn:#fbbf24;
-  --radius:22px;--shadow:0 18px 60px #0008;
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text);
-font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif}
-body{overflow:hidden;overscroll-behavior:none}
-button,input,select{font:inherit;color:inherit}
-button{border:0;cursor:pointer}
-.app{height:100dvh;position:relative;overflow:hidden}
-.screen{position:absolute;inset:0;display:none;background:var(--bg)}
-.screen.active{display:flex;flex-direction:column}
-.scroll{overflow:auto;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
-.safe-top{padding-top:max(env(safe-area-inset-top),12px)}
-.safe-bottom{padding-bottom:max(env(safe-area-inset-bottom),12px)}
-.icon{width:20px;height:20px;display:inline-block}
-svg{display:block}
-.topbar{height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;
-border-bottom:1px solid var(--line);flex:none}
-.brand{display:flex;align-items:center;gap:12px}.logo{width:42px;height:42px;border-radius:14px;
-display:grid;place-items:center;background:linear-gradient(145deg,#8b7cff,#5d4df0);box-shadow:0 8px 28px #6d5dfc44}
-.title{font-weight:800;font-size:17px}.sub{font-size:11px;color:var(--muted);margin-top:2px}
-.btn{background:var(--surface2);border:1px solid var(--line);border-radius:15px;padding:11px 13px;
-display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:650;transition:.16s}
-.btn:active{transform:scale(.96)}.btn.primary{background:linear-gradient(145deg,#8b7cff,#5d4df0);border-color:#8b7cff55}
-.btn.ghost{background:transparent;border-color:transparent}.btn.danger{color:var(--danger)}
-.hero{margin:18px auto 14px;width:min(92vw,430px);position:relative;aspect-ratio:3/4;border-radius:30px;overflow:hidden;
-background:var(--surface2);border:1px solid var(--line);box-shadow:var(--shadow)}
-.hero img{width:100%;height:100%;object-fit:cover}.hero:after{content:"";position:absolute;inset:0;
-background:linear-gradient(180deg,#00000012 30%,#000000e8 100%)}
-.heroText{position:absolute;z-index:2;left:20px;right:20px;bottom:20px}
-.badge{display:inline-flex;padding:6px 9px;border-radius:999px;background:#8b7cff25;border:1px solid #8b7cff55;color:#b9b2ff;
-font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
-.hero h2{margin:9px 0 2px;font-size:22px}.hero p{margin:0;color:#d4d4d8;font-size:12px}
-.homeActions{width:min(92vw,430px);margin:0 auto;display:grid;gap:10px}.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.section{width:min(92vw,430px);margin:22px auto 0}.sectionHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.sectionHead h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0}
-.recent{display:flex;gap:9px;overflow:auto;scrollbar-width:none}.recent::-webkit-scrollbar{display:none}
-.thumb{width:78px;aspect-ratio:3/4;border-radius:15px;overflow:hidden;flex:none;position:relative;border:1px solid var(--line);background:var(--surface2)}
-.thumb img{width:100%;height:100%;object-fit:cover}.thumb span{position:absolute;left:6px;right:6px;bottom:5px;font-size:9px;font-weight:700;text-shadow:0 2px 8px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bottomNav{height:76px;display:grid;grid-template-columns:repeat(3,1fr);background:#0d0d10ee;border-top:1px solid var(--line);
-backdrop-filter:blur(18px);flex:none;padding-bottom:env(safe-area-inset-bottom)}
-.navBtn{background:none;color:var(--muted);font-size:10px;display:grid;place-items:center;gap:3px}.navBtn.active{color:#c9c3ff}
-.navBtn svg{width:21px;height:21px}
-.libraryHead{padding:14px 18px 10px}.search{position:relative}.search input{width:100%;background:var(--surface2);border:1px solid var(--line);
-border-radius:15px;padding:12px 14px 12px 40px;outline:none}.search svg{position:absolute;left:14px;top:12px;color:var(--muted)}
-.chips{display:flex;gap:7px;overflow:auto;padding:10px 0 2px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
-.chip{white-space:nowrap;padding:8px 12px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);font-size:11px;color:var(--muted)}
-.chip.on{background:var(--accent2);color:#fff;border-color:transparent}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:0 18px 25px}
-@media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
-.poseCard{aspect-ratio:3/4;border-radius:18px;overflow:hidden;position:relative;background:var(--surface2);border:1px solid var(--line)}
-.poseCard img{width:100%;height:100%;object-fit:cover}.poseCard:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,#000000d9)}
-.poseInfo{position:absolute;z-index:2;bottom:10px;left:10px;right:10px}.poseInfo b{font-size:11px}.poseInfo small{display:block;color:#d4d4d8;font-size:9px;margin-top:2px}
-.fav{position:absolute;right:7px;top:7px;z-index:4;width:34px;height:34px;border-radius:50%;background:#0008;display:grid;place-items:center}
-.customTag{position:absolute;left:7px;top:7px;z-index:4;background:#8b7cffdd;color:#fff;font-size:8px;font-weight:800;padding:5px 7px;border-radius:999px}
-.empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:60px 20px}
-.camera{background:#000;z-index:20}
-.viewport{position:relative;flex:1;overflow:hidden;background:#000}
-#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#guideCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
-.overlayWrap{position:absolute;inset:0;display:grid;place-items:center;z-index:4;touch-action:none}
-#poseOverlay{max-width:90%;max-height:88%;object-fit:contain;opacity:.38;transform-origin:center;user-select:none;pointer-events:none}
-.camTop{position:absolute;top:0;left:0;right:0;z-index:10;padding:12px 14px max(12px,env(safe-area-inset-top));
-display:flex;justify-content:space-between;align-items:center;background:linear-gradient(#000b,transparent)}
-.camTools{display:flex;gap:7px}.circle{width:43px;height:43px;border-radius:50%;background:#17171bcc;border:1px solid #ffffff1a;
-display:grid;place-items:center;backdrop-filter:blur(10px)}.circle.active{background:#8b7cffcc}
-.camStatus{position:absolute;top:74px;left:50%;transform:translateX(-50%);z-index:10;padding:8px 12px;border-radius:999px;
-background:#111114d9;border:1px solid #ffffff16;backdrop-filter:blur(14px);font-size:10px;display:none;white-space:nowrap}
-.camBottom{position:absolute;left:0;right:0;bottom:0;z-index:10;padding:12px 18px max(18px,env(safe-area-inset-bottom));
-background:linear-gradient(transparent,#000e 30%,#000);display:flex;flex-direction:column;gap:12px}
-.camMini{display:flex;align-items:center;justify-content:space-between}.posePill{max-width:55%;padding:8px 13px;border-radius:999px;background:#17171bcc;border:1px solid #ffffff1a;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.captureRow{display:flex;justify-content:space-between;align-items:center}.shutter{width:76px;height:76px;border:4px solid #fff;border-radius:50%;padding:5px;background:transparent}
-.shutter i{display:block;width:100%;height:100%;border-radius:50%;background:#fff;transition:.12s}.shutter:active i{transform:scale(.82)}
-.controlsPanel{position:absolute;z-index:30;right:12px;top:70px;width:min(330px,calc(100vw - 24px));background:#151518f5;border:1px solid var(--line);
-border-radius:22px;padding:16px;backdrop-filter:blur(20px);box-shadow:var(--shadow);display:none;max-height:72vh;overflow:auto}
-.controlsPanel.open{display:block}.panelTitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.panelTitle b{font-size:13px}
-.control{margin:14px 0}.controlHead{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:8px}
-input[type=range]{width:100%;accent-color:var(--accent)}
-.switch{width:43px;height:25px;border-radius:999px;background:var(--surface3);padding:2px;transition:.2s}.switch i{width:21px;height:21px;background:#fff;border-radius:50%;display:block;transition:.2s}
-.switch.on{background:var(--accent2)}.switch.on i{transform:translateX(18px)}
-.lineRow{display:flex;align-items:center;justify-content:space-between;padding:10px 0;font-size:11px}
-.select{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:13px;padding:10px;outline:none}
-.result{z-index:25;padding:18px}.resultPreview{flex:1;display:grid;place-items:center;min-height:0}.resultImg{max-width:100%;max-height:100%;object-fit:contain;border-radius:20px;background:#000;border:1px solid var(--line)}
-.resultActions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-top:14px}
-.sheet{position:absolute;inset:0;z-index:60;background:#0009;display:none;align-items:flex-end}.sheet.open{display:flex}
-.sheetBox{width:100%;max-height:88dvh;background:var(--surface);border-top:1px solid var(--line);border-radius:26px 26px 0 0;padding:18px;overflow:auto}
-.handle{width:42px;height:4px;border-radius:4px;background:var(--surface3);margin:0 auto 16px}
-.uploadZone{border:2px dashed #3a3a43;border-radius:20px;padding:28px 16px;text-align:center;background:#0e0e11}.uploadZone b{display:block;margin-top:8px;font-size:13px}.uploadZone small{color:var(--muted)}
-.formGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.field label{font-size:10px;color:var(--muted);display:block;margin-bottom:5px}.field input{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:10px;outline:none}
-.fileList{display:grid;gap:8px;margin:12px 0}.fileItem{display:flex;gap:9px;align-items:center;background:var(--surface2);border:1px solid var(--line);padding:8px;border-radius:13px}.fileItem img{width:45px;height:55px;border-radius:9px;object-fit:cover}.fileItem span{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
-.modalTitle{font-size:16px;font-weight:800;margin:0 0 4px}.muted{color:var(--muted);font-size:11px}
-.welcome{z-index:100;background:radial-gradient(100% 80% at 50% 0,#252043,#09090b 68%);padding:26px;justify-content:space-between;text-align:center}
-.welcomeMain{margin:auto;max-width:390px}.bigLogo{width:88px;height:88px;border-radius:28px;display:grid;place-items:center;margin:0 auto 20px;background:linear-gradient(145deg,#8b7cff,#5d4df0);box-shadow:0 20px 60px #6d5dfc55}
-.welcome h1{font-size:30px;margin:0 0 8px}.welcome p{color:var(--muted);font-size:13px;line-height:1.6;margin:0 auto;max-width:330px}
-.featureList{display:grid;gap:8px;margin:24px 0;text-align:left}.feature{background:#141419aa;border:1px solid #ffffff0d;border-radius:16px;padding:12px;display:flex;gap:10px}.feature b{font-size:11px}.feature span{font-size:10px;color:var(--muted);display:block;margin-top:2px}
-.toastWrap{position:absolute;left:0;right:0;bottom:90px;z-index:200;display:flex;flex-direction:column;align-items:center;gap:7px;pointer-events:none}.toast{background:#1b1b20ee;border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-size:11px;box-shadow:var(--shadow);animation:toast .2s ease}.toast.ok{border-color:#065f46}.toast.err{border-color:#7f1d1d}
-@keyframes toast{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.hidden{display:none!important}
-.progress{height:4px;border-radius:4px;background:var(--surface3);overflow:hidden}.progress i{display:block;height:100%;width:0;background:var(--accent);transition:.2s}
-.settings{padding-bottom:25px}.settingGroup{width:min(92vw,560px);margin:20px auto 0}.settingGroup h3{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin:0 0 8px}
-.settingCard{background:var(--surface2);border:1px solid var(--line);border-radius:18px;overflow:hidden}.settingRow{padding:14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);gap:15px}.settingRow:last-child{border:0}.settingRow b{font-size:12px}.settingRow small{display:block;color:var(--muted);font-size:10px;margin-top:3px;line-height:1.4}
-@media(min-width:900px){.homeWrap{width:900px;margin:auto;display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:start}.hero{margin-top:24px}.homeRight{padding-top:30px}.bottomNav{display:none}}
+  :root{
+    --bg:#0a0a0d; --bg2:#111114; --card:#17171b; --line:#232329;
+    --accent:#818cf8; --accent2:#6366f1; --text:#f4f4f5; --sub:#9a9aa3; --danger:#f87171; --good:#34d399;
+  }
+  *{ -webkit-tap-highlight-color: transparent; box-sizing:border-box; }
+  html,body{ height:100%; background:var(--bg); }
+  body{
+    margin:0; overscroll-behavior:none; overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text); user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:manipulation;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+    padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
+  }
+  ::-webkit-scrollbar{ width:4px; height:4px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  .scrollbar-none::-webkit-scrollbar{ display:none; }
+  .scrollbar-none{ -ms-overflow-style:none; scrollbar-width:none; }
+
+  .mirror{ transform:scaleX(-1); }
+  /* Screen visibility is controlled with this plain-CSS class (not Tailwind's `hidden`)
+     so navigation still works correctly even if the Tailwind CDN script fails to load. */
+  .screen{ display:none !important; animation:fadeIn .22s ease; }
+  .screen.active{ display:flex !important; }
+  /* Guarantee `.hidden` always wins over any Tailwind display utility (flex, etc.)
+     regardless of CDN load order/version, for drawers, sheets, pills, overlays. */
+  .hidden{ display:none !important; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes pulseSoft{ 0%,100%{opacity:1} 50%{opacity:.45} }
+  .pulse-soft{ animation:pulseSoft 1.6s ease-in-out infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+  .spin{ animation:spin 1s linear infinite; }
+  @keyframes shimmer{ 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+  .skeleton{ background:linear-gradient(90deg,#18181c 25%,#222228 37%,#18181c 63%); background-size:400px 100%; animation:shimmer 1.4s ease-in-out infinite; }
+
+  input[type=range]{ -webkit-appearance:none; appearance:none; height:4px; border-radius:4px; background:var(--line); outline:none; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--accent); border:2px solid #fff2; cursor:pointer; }
+  input[type=range]::-moz-range-thumb{ width:16px; height:16px; border-radius:50%; background:var(--accent); border:none; cursor:pointer; }
+
+  .overlay-img{ will-change:transform,opacity; transform-origin:center center; touch-action:none; }
+  .toast-wrap{ position:fixed; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 14px); z-index:9999; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
+  .toast{ pointer-events:auto; max-width:88%; background:#1c1c22e6; backdrop-filter:blur(10px); border:1px solid var(--line); color:var(--text); padding:10px 16px; border-radius:14px; font-size:13px; box-shadow:0 8px 24px #0006; animation:toastIn .25s ease; display:flex; align-items:center; gap:8px; }
+  @keyframes toastIn{ from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)} }
+  .toast.err{ border-color:#7f1d1d; } .toast.ok{ border-color:#065f46; }
+
+  .safe-top{ padding-top:max(env(safe-area-inset-top),12px); }
+  .safe-bottom{ padding-bottom:max(env(safe-area-inset-bottom),12px); }
+  .card-press:active{ transform:scale(.97); }
+  .btn-press:active{ transform:scale(.94); }
+  .grid-poses{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  @media(min-width:480px){ .grid-poses{ grid-template-columns:repeat(3,1fr);} }
+  @media(min-width:768px){ .grid-poses{ grid-template-columns:repeat(4,1fr);} }
+
+  .sheet{ position:fixed; inset:0; z-index:70; display:flex; align-items:flex-end; background:#000a; backdrop-filter:blur(2px); }
+  .sheet-panel{ width:100%; max-height:88vh; background:var(--bg2); border-top:1px solid var(--line); border-radius:24px 24px 0 0; padding:18px; overflow-y:auto; animation:sheetUp .25s ease; }
+  @keyframes sheetUp{ from{transform:translateY(30px); opacity:.5} to{transform:translateY(0); opacity:1} }
+
+  .switch{ position:relative; width:42px; height:24px; border-radius:999px; background:var(--line); transition:.2s; flex-shrink:0; }
+  .switch.on{ background:var(--accent2); }
+  .switch .dot{ position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:.2s; }
+  .switch.on .dot{ left:20px; }
 </style>
 </head>
-<body>
-<div class="app" id="app">
+<body class="bg-[color:var(--bg)]">
 
-<section class="screen welcome active" id="welcome">
-  <div></div>
-  <div class="welcomeMain">
-    <div class="bigLogo" id="welcomeIcon"></div>
-    <h1>PoseFlow</h1>
-    <p>Use any reference photo as a live pose guide, position yourself naturally, and capture the final photo at the best quality your camera provides.</p>
-    <div class="featureList">
-      <div class="feature"><span>◉</span><div><b>Live pose overlay</b><span>Adjust opacity, size, rotation, mirror and position.</span></div></div>
-      <div class="feature"><span>＋</span><div><b>Bring your own poses</b><span>Import one or hundreds of images and keep them locally.</span></div></div>
-      <div class="feature"><span>⌁</span><div><b>Pro camera tools</b><span>Grid, safe area, level guide, timer, zoom and high-resolution capture.</span></div></div>
-      <div class="feature"><span>▣</span><div><b>Private by design</b><span>Your custom poses stay in this browser's local storage.</span></div></div>
-    </div>
-    <button class="btn primary" style="width:100%;padding:15px" onclick="dismissWelcome()">Start using PoseFlow</button>
-  </div>
-  <small class="muted">No account required · Camera permission is requested only when you start the camera</small>
-</section>
+<div id="app" class="h-screen w-screen relative flex flex-col overflow-hidden">
 
-<section class="screen" id="home">
-  <header class="topbar safe-top">
-    <div class="brand"><div class="logo" id="brandIcon"></div><div><div class="title">PoseFlow</div><div class="sub">Reference → pose → capture</div></div></div>
-    <button class="btn" onclick="showScreen('settings')">⚙</button>
-  </header>
-  <div class="scroll" style="flex:1">
-    <div class="homeWrap">
-      <div>
-        <div class="hero" onclick="launchCurrent()"><img id="heroImg"><div class="heroText"><span class="badge">Selected reference</span><h2 id="heroTitle">No pose yet</h2><p id="heroCat">Add a reference image to begin</p></div></div>
+  <!-- ============================================================ -->
+  <!-- SCREEN 0: WELCOME / PERMISSION PRIMER                         -->
+  <!-- ============================================================ -->
+  <section id="screen-welcome" class="screen absolute inset-0 z-[100] flex-col justify-between p-6 safe-top safe-bottom" style="background:radial-gradient(120% 100% at 50% 0%, #1b1b2e 0%, #0a0a0d 60%);">
+    <div></div>
+    <div class="flex flex-col items-center text-center px-2">
+      <div class="w-20 h-20 rounded-3xl flex items-center justify-center mb-6" style="background:linear-gradient(145deg,#6366f1,#818cf8); box-shadow:0 10px 40px #6366f166;">
+        <i data-lucide="scan-face" class="w-10 h-10 text-white"></i>
       </div>
-      <div class="homeRight">
-        <div class="homeActions">
-          <button class="btn primary" style="padding:15px" onclick="launchCurrent()">◎ Start Camera</button>
-          <div class="row2"><button class="btn" onclick="showScreen('library')">▦ Library</button><button class="btn" onclick="openUpload()">＋ Add Pose</button></div>
+      <h1 class="text-2xl font-bold mb-2">Welcome to PoseCam Pro</h1>
+      <p class="text-sm text-[color:var(--sub)] leading-relaxed max-w-xs">Overlay a reference pose on your live camera, match it perfectly, and capture a clean high-quality photo — all fully on-device.</p>
+
+      <div class="w-full max-w-xs mt-8 space-y-3 text-left">
+        <div class="flex items-start gap-3 p-3 rounded-2xl" style="background:var(--card); border:1px solid var(--line);">
+          <i data-lucide="camera" class="w-5 h-5 text-[color:var(--accent)] shrink-0 mt-0.5"></i>
+          <div><p class="text-sm font-semibold">Camera Access</p><p class="text-xs text-[color:var(--sub)]">Needed to show the live viewfinder and capture photos.</p></div>
         </div>
-        <div class="section"><div class="sectionHead"><h3>Quick tools</h3></div>
-          <div class="row2"><button class="btn" onclick="randomPose()">⤨ Random Pose</button><button class="btn" onclick="showScreen('library');setTimeout(()=>focusSearch(),50)">⌕ Search Poses</button></div>
+        <div class="flex items-start gap-3 p-3 rounded-2xl" style="background:var(--card); border:1px solid var(--line);">
+          <i data-lucide="shield-check" class="w-5 h-5 text-[color:var(--good)] shrink-0 mt-0.5"></i>
+          <div><p class="text-sm font-semibold">100% Private</p><p class="text-xs text-[color:var(--sub)]">Nothing is uploaded. No account, no backend, no cloud storage.</p></div>
         </div>
-        <div class="section"><div class="sectionHead"><h3>Recently used</h3><button class="btn ghost" onclick="showScreen('library')">View all</button></div><div class="recent" id="recent"></div></div>
       </div>
     </div>
-  </div>
-  <nav class="bottomNav">
-    <button class="navBtn active" onclick="showScreen('home')">⌂<span>Home</span></button>
-    <button class="navBtn" onclick="showScreen('library')">▦<span>Library</span></button>
-    <button class="navBtn" onclick="showScreen('settings')">⚙<span>Settings</span></button>
-  </nav>
-</section>
+    <button onclick="dismissWelcome()" class="w-full max-w-xs mx-auto py-4 rounded-2xl font-semibold btn-press transition" style="background:linear-gradient(145deg,#6366f1,#4f46e5); box-shadow:0 8px 30px #6366f155;">Get Started</button>
+  </section>
 
-<section class="screen" id="library">
-  <header class="topbar safe-top"><button class="btn" onclick="showScreen('home')">‹</button><div class="title">Pose Library</div><div style="display:flex;gap:6px"><button class="btn" onclick="randomPose()">⤨</button><button class="btn" onclick="openUpload()">＋</button></div></header>
-  <div class="libraryHead">
-    <div class="search"><span id="searchIcon"></span><input id="search" placeholder="Search name, category or tag…" oninput="renderLibrary()"></div>
-    <div class="chips" id="chips"></div>
-  </div>
-  <div class="scroll" style="flex:1"><div class="grid" id="grid"></div></div>
-</section>
+  <!-- ============================================================ -->
+  <!-- SCREEN 1: HOME                                                -->
+  <!-- ============================================================ -->
+  <section id="screen-home" class="screen active flex-1 flex-col p-5 overflow-y-auto safe-top scrollbar-none">
+    <header class="flex items-center justify-between pt-2 pb-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl flex items-center justify-center" style="background:linear-gradient(145deg,#6366f1,#818cf8);">
+          <i data-lucide="camera" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold leading-tight">PoseCam Pro</h1>
+          <p class="text-xs text-[color:var(--sub)]">Match the pose. Nail the shot.</p>
+        </div>
+      </div>
+      <button onclick="switchScreen('screen-settings')" class="p-2.5 rounded-full btn-press transition" style="background:var(--card); border:1px solid var(--line);">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+      </button>
+    </header>
 
-<section class="screen camera" id="camera">
-  <div class="viewport" id="viewport">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="guideCanvas"></canvas>
-    <div class="overlayWrap" id="overlayWrap"><img id="poseOverlay" draggable="false"></div>
-    <div class="camTop safe-top">
-      <button class="circle" onclick="closeCamera()">×</button>
-      <div class="camTools">
-        <button class="circle" id="timerBtn" onclick="cycleTimer()">⌁</button>
-        <button class="circle" id="gridBtn" onclick="toggleGrid()">#</button>
-        <button class="circle" id="flashBtn" onclick="toggleTorch()">ϟ</button>
-        <button class="circle" onclick="toggleControls()">☷</button>
+    <!-- Hero -->
+    <div class="relative w-full max-w-sm mx-auto aspect-[3/4] rounded-[28px] overflow-hidden card-press cursor-pointer mb-5" style="background:var(--card); border:1px solid var(--line);" onclick="openCameraWithPose(state.currentPoseId)">
+      <img id="home-selected-preview" class="w-full h-full object-cover" alt="Current Pose">
+      <div class="absolute inset-0" style="background:linear-gradient(to top, #000000d9 0%, transparent 55%);"></div>
+      <div class="absolute top-4 left-4">
+        <span id="home-selected-badge" class="px-2.5 py-1 text-[10px] font-bold rounded-full" style="background:#6366f133; border:1px solid #6366f166; color:var(--accent);">SELECTED REFERENCE</span>
+      </div>
+      <div class="absolute top-4 right-4 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg" style="background:#6366f1e6;">
+        <i data-lucide="play" class="w-6 h-6 ml-0.5"></i>
+      </div>
+      <div class="absolute bottom-5 left-5 right-5 text-left">
+        <h2 id="home-selected-title" class="text-lg font-bold text-white truncate">—</h2>
+        <p id="home-selected-category" class="text-xs text-[color:var(--sub)]">—</p>
       </div>
     </div>
-    <div class="camStatus" id="camStatus">Ready</div>
-    <div class="controlsPanel" id="controls">
-      <div class="panelTitle"><b>Camera & Overlay</b><button class="btn ghost" onclick="toggleControls()">×</button></div>
-      <div class="control"><div class="controlHead"><span>Overlay opacity</span><b id="opVal">38%</b></div><input id="opacity" type="range" min=".05" max=".8" step=".01" value=".38" oninput="updateOverlay()"></div>
-      <div class="control"><div class="controlHead"><span>Overlay size</span><b id="scaleVal">100%</b></div><input id="scale" type="range" min=".35" max="2.5" step=".01" value="1" oninput="updateOverlay()"></div>
-      <div class="control"><div class="controlHead"><span>Rotation</span><b id="rotVal">0°</b></div><input id="rotation" type="range" min="-60" max="60" value="0" oninput="updateOverlay()"></div>
-      <div class="lineRow"><span>Mirror reference</span><span class="switch" id="mirrorSwitch" onclick="toggleMirror()"><i></i></span></div>
-      <div class="lineRow"><span>Show framing grid</span><span class="switch" id="gridSwitch" onclick="toggleGrid()"><i></i></span></div>
-      <div class="lineRow"><span>Safe-area guide</span><span class="switch" id="safeSwitch" onclick="toggleSafe()"><i></i></span></div>
-      <div class="lineRow"><span>Level / horizon</span><span class="switch" id="levelSwitch" onclick="toggleLevel()"><i></i></span></div>
-      <div class="control"><div class="controlHead"><span>Camera zoom</span><b id="zoomVal">1.0×</b></div><input id="zoom" type="range" min="1" max="1" step=".1" value="1" oninput="updateZoom()"></div>
-      <div class="control"><div class="controlHead"><span>Capture quality</span><b id="qualityVal">95%</b></div><input id="quality" type="range" min=".75" max="1" step=".01" value=".95"></div>
-      <button class="btn" style="width:100%" onclick="resetOverlay()">Reset overlay</button>
+
+    <div class="w-full max-w-sm mx-auto space-y-3">
+      <button onclick="openCameraWithPose(state.currentPoseId)" class="w-full py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 btn-press transition" style="background:linear-gradient(145deg,#6366f1,#4f46e5); box-shadow:0 8px 26px #6366f14d;">
+        <i data-lucide="aperture" class="w-5 h-5"></i> Start Camera Overlay
+      </button>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="switchScreen('screen-library')" class="py-3.5 rounded-2xl font-medium flex items-center justify-center gap-2 btn-press transition" style="background:var(--card); border:1px solid var(--line);">
+          <i data-lucide="grid-2x2" class="w-4 h-4"></i> Library
+        </button>
+        <button onclick="openAddPoseSheet()" class="py-3.5 rounded-2xl font-medium flex items-center justify-center gap-2 btn-press transition" style="background:var(--card); border:1px solid var(--line);">
+          <i data-lucide="upload" class="w-4 h-4"></i> Add Pose
+        </button>
+      </div>
     </div>
-    <div class="camBottom">
-      <div class="camMini"><button class="btn" onclick="previousPose()">‹</button><div class="posePill" id="camPoseName">—</div><button class="btn" onclick="nextPose()">›</button></div>
-      <div class="captureRow"><button class="circle" onclick="switchCamera()">↻</button><button class="shutter" onclick="captureSequence()"><i></i></button><button class="circle" onclick="openPosePicker()">▦</button></div>
+
+    <footer class="mt-7 space-y-3 pb-4">
+      <div class="flex items-center justify-between text-xs text-[color:var(--sub)] px-1">
+        <span class="font-semibold">Recently Used</span>
+        <button onclick="switchScreen('screen-library')" class="text-[color:var(--accent)]">View All</button>
+      </div>
+      <div id="home-quick-bar" class="flex gap-3 overflow-x-auto pb-1 scrollbar-none"></div>
+    </footer>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 2: CAMERA (FULLSCREEN)                                 -->
+  <!-- ============================================================ -->
+  <section id="screen-camera" class="screen absolute inset-0 bg-black z-40 flex-col">
+    <div id="camera-viewport" class="relative flex-1 w-full h-full overflow-hidden bg-black">
+      <video id="webcam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
+
+      <!-- draggable / pinchable pose overlay -->
+      <div id="pose-overlay-container" class="absolute inset-0 flex items-center justify-center z-10" style="touch-action:none;">
+        <img id="pose-overlay-img" class="overlay-img max-w-[92%] max-h-[92%] object-contain" style="opacity:.4;" alt="Pose reference" draggable="false">
+      </div>
+
+      <canvas id="ai-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-20"></canvas>
+
+      <div id="countdown-overlay" class="hidden absolute inset-0 z-30 flex items-center justify-center" style="background:#000000a6; backdrop-filter:blur(3px);">
+        <span id="countdown-text" class="text-9xl font-black text-white drop-shadow-2xl">3</span>
+      </div>
+
+      <div id="flash-overlay" class="hidden absolute inset-0 z-40 bg-white"></div>
+
+      <div id="ai-feedback-pill" class="hidden absolute top-20 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-xl" style="background:#18181cd9; border:1px solid #ffffff1a; color:var(--accent); backdrop-filter:blur(10px);">
+        <span class="w-2 h-2 rounded-full pulse-soft" style="background:var(--accent);"></span>
+        <span id="ai-feedback-text">Analyzing pose…</span>
+        <span id="ai-match-score" class="ml-1 text-[color:var(--good)] font-bold"></span>
+      </div>
+
+      <!-- top bar -->
+      <div class="absolute top-0 inset-x-0 p-4 z-30 flex items-center justify-between safe-top" style="background:linear-gradient(to bottom, #000000cc, transparent);">
+        <button onclick="closeCameraScreen()" class="p-3 rounded-full btn-press transition" style="background:#18181c99; border:1px solid #ffffff1a;"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <div class="flex items-center gap-2">
+          <button id="btn-timer" onclick="cycleTimer()" class="px-3 py-2 rounded-full text-xs font-medium flex items-center gap-1.5 btn-press transition" style="background:#18181c99; border:1px solid #ffffff1a;">
+            <i data-lucide="timer" class="w-4 h-4"></i><span id="timer-label">Off</span>
+          </button>
+          <button id="btn-lock-overlay" onclick="toggleOverlayLock()" class="p-3 rounded-full btn-press transition" style="background:#18181c99; border:1px solid #ffffff1a;"><i data-lucide="lock-open" id="icon-lock" class="w-5 h-5"></i></button>
+          <button onclick="toggleOverlayControlsDrawer()" class="p-3 rounded-full btn-press transition" style="background:#18181c99; border:1px solid #ffffff1a;"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i></button>
+        </div>
+      </div>
+
+      <!-- overlay controls drawer -->
+      <div id="overlay-controls-drawer" class="hidden absolute top-20 right-3 z-30 w-72 p-4 rounded-2xl text-xs space-y-4 shadow-2xl safe-top" style="background:#151518f0; border:1px solid var(--line); backdrop-filter:blur(16px);">
+        <div class="flex items-center justify-between pb-2" style="border-bottom:1px solid var(--line);">
+          <span class="font-bold">Overlay Controls</span>
+          <button onclick="toggleOverlayControlsDrawer()" class="text-[color:var(--sub)]"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div>
+          <div class="flex justify-between text-[color:var(--sub)] mb-1"><span>Opacity</span><span id="val-opacity">40%</span></div>
+          <input type="range" id="slider-opacity" min="0.1" max="0.7" step="0.02" value="0.4" oninput="updateOverlayOpacity(this.value)" class="w-full">
+        </div>
+        <div>
+          <div class="flex justify-between text-[color:var(--sub)] mb-1"><span>Size</span><span id="val-scale">100%</span></div>
+          <input type="range" id="slider-scale" min="0.4" max="2.2" step="0.02" value="1.0" oninput="updateOverlayScale(this.value)" class="w-full">
+        </div>
+        <div>
+          <div class="flex justify-between text-[color:var(--sub)] mb-1"><span>Rotation</span><span id="val-rotate">0°</span></div>
+          <input type="range" id="slider-rotate" min="-45" max="45" step="1" value="0" oninput="updateOverlayRotation(this.value)" class="w-full">
+        </div>
+        <div class="flex items-center justify-between pt-1">
+          <span>Mirror Overlay</span>
+          <div class="switch" id="switch-mirror" onclick="toggleOverlayMirror()"><div class="dot"></div></div>
+        </div>
+        <button onclick="resetOverlayTransform()" class="w-full py-2 rounded-xl text-center font-medium" style="background:var(--line);">Reset Position &amp; Size</button>
+        <div class="pt-2 flex items-center justify-between" style="border-top:1px solid var(--line);">
+          <span>AI Pose Assistant</span>
+          <div class="switch" id="switch-ai" onclick="toggleAIPoseAssistant()"><div class="dot"></div></div>
+        </div>
+        <p class="text-[10px] text-[color:var(--sub)] leading-relaxed">Drag the pose image to reposition it. Pinch with two fingers to resize &amp; rotate. Lock it once it's set.</p>
+      </div>
+    </div>
+
+    <!-- bottom controls -->
+    <div class="p-5 bg-black flex flex-col gap-4 z-30 safe-bottom">
+      <div class="flex items-center justify-between gap-3">
+        <button onclick="prevPose()" class="p-2.5 rounded-full btn-press transition" style="background:var(--card);"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+        <button onclick="switchScreen('screen-library')" class="flex items-center gap-2 px-4 py-2 rounded-full text-xs max-w-[220px]" style="background:var(--card); border:1px solid var(--line);">
+          <i data-lucide="image" class="w-4 h-4 text-[color:var(--accent)] shrink-0"></i>
+          <span id="camera-current-pose-name" class="truncate">—</span>
+        </button>
+        <button onclick="nextPose()" class="p-2.5 rounded-full btn-press transition" style="background:var(--card);"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+      </div>
+      <div class="flex items-center justify-between pt-1">
+        <button onclick="switchCameraFacing()" class="p-4 rounded-full btn-press transition" style="background:var(--card); border:1px solid var(--line);"><i data-lucide="refresh-cw" class="w-6 h-6"></i></button>
+        <button onclick="triggerCaptureSequence()" class="relative w-[74px] h-[74px] rounded-full border-4 border-white flex items-center justify-center p-1 btn-press transition">
+          <div class="w-full h-full rounded-full bg-white"></div>
+        </button>
+        <button id="btn-camera-fav" onclick="toggleFavoriteCurrentPose()" class="p-4 rounded-full btn-press transition" style="background:var(--card); border:1px solid var(--line);"><i data-lucide="heart" id="icon-camera-fav" class="w-6 h-6"></i></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 3: POSE LIBRARY                                        -->
+  <!-- ============================================================ -->
+  <section id="screen-library" class="screen flex-1 flex-col z-20 absolute inset-0 bg-[color:var(--bg)] safe-top safe-bottom">
+    <header class="flex items-center justify-between px-5 pt-4 pb-3" style="border-bottom:1px solid var(--line);">
+      <div class="flex items-center gap-3">
+        <button onclick="switchScreen('screen-home')" class="p-2 rounded-full" style="background:var(--card);"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+        <h2 class="text-base font-bold">Pose Library</h2>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openAddPoseSheet()" class="p-2 rounded-full btn-press transition" style="background:var(--card);"><i data-lucide="plus" class="w-5 h-5 text-[color:var(--accent)]"></i></button>
+        <button onclick="selectRandomPose()" class="px-3 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 btn-press transition" style="background:#6366f126; border:1px solid #6366f166; color:var(--accent);">
+          <i data-lucide="shuffle" class="w-3.5 h-3.5"></i> Random
+        </button>
+      </div>
+    </header>
+
+    <div class="px-5 pt-3 pb-2 space-y-3">
+      <div class="relative">
+        <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--sub)]"></i>
+        <input type="text" id="library-search" oninput="renderLibraryGrid()" placeholder="Search poses, categories, tags…" class="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none" style="background:var(--card); border:1px solid var(--line); color:var(--text);">
+      </div>
+      <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none" id="category-chips"></div>
+    </div>
+
+    <main class="flex-1 overflow-y-auto px-5 pb-6 scrollbar-none">
+      <div id="library-status" class="text-[11px] text-[color:var(--sub)] mb-2"></div>
+      <div id="library-grid" class="grid-poses"></div>
+    </main>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 4: RESULT / REVIEW                                     -->
+  <!-- ============================================================ -->
+  <section id="screen-result" class="screen absolute inset-0 z-50 flex-col p-5 safe-top safe-bottom" style="background:var(--bg);">
+    <header class="flex items-center justify-between pb-4">
+      <h2 class="text-base font-bold">Review Photo</h2>
+      <button onclick="retakePhoto()" class="p-2 rounded-full" style="background:var(--card);"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </header>
+    <main class="flex-1 flex flex-col items-center justify-center overflow-hidden">
+      <div class="relative w-full max-w-md aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl" style="background:#000; border:1px solid var(--line);">
+        <img id="result-img" class="w-full h-full object-contain" alt="Captured Photo">
+        <div id="result-loading" class="hidden absolute inset-0 flex items-center justify-center" style="background:#000a;"><i data-lucide="loader-2" class="w-8 h-8 spin text-[color:var(--accent)]"></i></div>
+      </div>
+      <label class="mt-4 flex items-center gap-2 text-xs text-[color:var(--sub)]">
+        <input type="checkbox" id="chk-include-overlay" onchange="toggleResultOverlayCombine(this.checked)" class="w-4 h-4 accent-[color:var(--accent)] rounded">
+        Include pose reference in saved photo
+      </label>
+    </main>
+    <footer class="pt-4 grid grid-cols-2 gap-3 max-w-md mx-auto w-full">
+      <button onclick="retakePhoto()" class="py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 btn-press transition" style="background:var(--card); border:1px solid var(--line);"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Retake</button>
+      <button onclick="saveOrShareCapturedPhoto()" class="py-3.5 rounded-xl font-semibold text-white flex items-center justify-center gap-2 btn-press transition" style="background:linear-gradient(145deg,#6366f1,#4f46e5);"><i data-lucide="download" class="w-4 h-4"></i> Save / Share</button>
+    </footer>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 5: SETTINGS                                            -->
+  <!-- ============================================================ -->
+  <section id="screen-settings" class="screen absolute inset-0 z-20 flex-col overflow-y-auto p-5 safe-top safe-bottom scrollbar-none" style="background:var(--bg);">
+    <header class="flex items-center gap-3 pb-5">
+      <button onclick="switchScreen('screen-home')" class="p-2 rounded-full" style="background:var(--card);"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+      <h2 class="text-lg font-bold">Settings</h2>
+    </header>
+
+    <div class="space-y-7 pb-10 max-w-lg w-full mx-auto">
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-[color:var(--sub)] uppercase tracking-wider">Pose Library</h3>
+        <div class="p-4 rounded-2xl space-y-3" style="background:var(--card); border:1px solid var(--line);">
+          <div class="flex items-center justify-between text-sm">
+            <span>Detected built-in poses</span>
+            <span id="setting-detected-count" class="font-semibold text-[color:var(--accent)]">—</span>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span>Custom uploaded poses</span>
+            <span id="setting-custom-count" class="font-semibold text-[color:var(--accent)]">0</span>
+          </div>
+          <button onclick="rescanBuiltInPoses(true)" class="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 btn-press transition" style="background:var(--line);">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Rescan poses/ folder
+          </button>
+          <div class="flex items-center gap-2 pt-1">
+            <input type="number" id="input-manual-count" min="0" max="999" placeholder="Force count e.g. 100" class="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style="background:var(--bg2); border:1px solid var(--line); color:var(--text);">
+            <button onclick="applyManualPoseCount()" class="px-4 py-2 rounded-xl text-sm font-medium" style="background:var(--accent2);">Set</button>
+          </div>
+          <p class="text-[10px] text-[color:var(--sub)] leading-relaxed">Auto-scan probes <code>poses/pose1.jpg</code> upward until several images in a row are missing. If your host doesn't return real 404s, set the exact count manually.</p>
+        </div>
+        <button onclick="openAddPoseSheet()" class="w-full py-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 btn-press transition" style="background:#6366f126; border:1px solid #6366f166; color:var(--accent);">
+          <i data-lucide="upload" class="w-4 h-4"></i> Manually Add Pose Image(s)
+        </button>
+        <button onclick="openManagePoses()" class="w-full py-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 btn-press transition" style="background:var(--card); border:1px solid var(--line);">
+          <i data-lucide="list-checks" class="w-4 h-4"></i> Manage Custom Poses
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-[color:var(--sub)] uppercase tracking-wider">Camera</h3>
+        <div class="p-4 rounded-2xl space-y-4" style="background:var(--card); border:1px solid var(--line);">
+          <div>
+            <p class="text-sm mb-2">Capture resolution target</p>
+            <select id="select-resolution" onchange="updateResolutionSetting(this.value)" class="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style="background:var(--bg2); border:1px solid var(--line); color:var(--text);">
+              <option value="max">Maximum available (recommended)</option>
+              <option value="4k">Up to 4K (3840×2160)</option>
+              <option value="1080">Up to Full HD (1920×1080)</option>
+            </select>
+          </div>
+          <div>
+            <p class="text-sm mb-2">Photo aspect ratio</p>
+            <select id="select-aspect" onchange="updateAspectSetting(this.value)" class="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style="background:var(--bg2); border:1px solid var(--line); color:var(--text);">
+              <option value="native">Native / Full sensor</option>
+              <option value="3:4">Portrait 3:4</option>
+              <option value="9:16">Portrait 9:16</option>
+              <option value="1:1">Square 1:1</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span>JPEG Quality</span>
+            <span id="val-jpeg-quality" class="text-[color:var(--sub)]">95%</span>
+          </div>
+          <input type="range" id="slider-jpeg-quality" min="0.7" max="1" step="0.01" value="0.95" oninput="updateJpegQuality(this.value)" class="w-full">
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-[color:var(--sub)] uppercase tracking-wider">AI Pose Assistant</h3>
+        <div class="p-4 rounded-2xl space-y-3" style="background:var(--card); border:1px solid var(--line);">
+          <div class="flex items-center justify-between">
+            <div><p class="text-sm font-medium">Enable by default</p><p class="text-xs text-[color:var(--sub)]">Compares your body position live to the reference pose.</p></div>
+            <div class="switch" id="switch-ai-default" onclick="toggleAIDefaultSetting()"><div class="dot"></div></div>
+          </div>
+          <p id="ai-availability-note" class="text-[10px] text-[color:var(--sub)] leading-relaxed"></p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-[color:var(--sub)] uppercase tracking-wider">Install App</h3>
+        <div class="p-4 rounded-2xl space-y-3" style="background:var(--card); border:1px solid var(--line);">
+          <button id="btn-install-native" onclick="triggerNativeInstall()" class="hidden w-full py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2" style="background:linear-gradient(145deg,#6366f1,#4f46e5);"><i data-lucide="download" class="w-4 h-4"></i> Install App</button>
+          <p class="text-xs leading-relaxed"><strong>iOS Safari:</strong> Tap the Share icon, then "Add to Home Screen".</p>
+          <p class="text-xs leading-relaxed"><strong>Android Chrome:</strong> Tap the ⋮ menu, then "Install app" / "Add to Home Screen".</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-[color:var(--sub)] uppercase tracking-wider">Privacy</h3>
+        <div class="p-4 rounded-2xl space-y-2 text-xs" style="background:var(--card); border:1px solid var(--line); color:var(--sub);">
+          <div class="flex items-center gap-2 font-medium" style="color:var(--good);"><i data-lucide="shield-check" class="w-4 h-4"></i> 100% on-device processing</div>
+          <p>Your camera feed, photos and any custom pose images you upload stay in your browser (IndexedDB / local storage). Nothing is ever sent to a server.</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-[color:var(--sub)] uppercase tracking-wider">Data</h3>
+        <button onclick="confirmResetApp()" class="w-full py-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 btn-press transition" style="background:#7f1d1d33; border:1px solid #7f1d1d80; color:var(--danger);">
+          <i data-lucide="trash-2" class="w-4 h-4"></i> Reset App Data
+        </button>
+      </div>
+
+      <p class="text-center text-[10px] text-[color:var(--sub)] pt-2">PoseCam Pro · single-file PWA</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- ADD POSE SHEET                                                -->
+  <!-- ============================================================ -->
+  <div id="sheet-add-pose" class="sheet hidden">
+    <div class="sheet-panel">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-bold">Add Pose Image(s)</h3>
+        <button onclick="closeSheet('sheet-add-pose')" class="p-2 rounded-full" style="background:var(--card);"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <label for="file-input-add-pose" class="block w-full py-10 rounded-2xl text-center cursor-pointer mb-4" style="background:var(--card); border:2px dashed var(--line);">
+        <i data-lucide="image-plus" class="w-8 h-8 mx-auto mb-2 text-[color:var(--accent)]"></i>
+        <p class="text-sm font-medium">Tap to choose photo(s)</p>
+        <p class="text-xs text-[color:var(--sub)] mt-1">JPG / PNG / WEBP — from camera roll or files</p>
+      </label>
+      <input id="file-input-add-pose" type="file" accept="image/*" multiple class="hidden" onchange="handleAddPoseFiles(this.files)">
+
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <div>
+          <label class="text-xs text-[color:var(--sub)] block mb-1">Category</label>
+          <input id="add-pose-category" type="text" placeholder="e.g. Standing" class="w-full px-3 py-2 rounded-xl text-sm outline-none" style="background:var(--bg2); border:1px solid var(--line); color:var(--text);">
+        </div>
+        <div>
+          <label class="text-xs text-[color:var(--sub)] block mb-1">Name prefix</label>
+          <input id="add-pose-prefix" type="text" placeholder="e.g. My Pose" class="w-full px-3 py-2 rounded-xl text-sm outline-none" style="background:var(--bg2); border:1px solid var(--line); color:var(--text);">
+        </div>
+      </div>
+
+      <div id="add-pose-preview-list" class="space-y-2 mb-3"></div>
+      <p class="text-[10px] text-[color:var(--sub)] leading-relaxed">Images are resized for performance and stored locally in your browser (IndexedDB). They appear in your Library instantly and work fully offline. Clearing browser data / site data will remove them — use "Save/Share" workflows to keep your originals safe.</p>
     </div>
   </div>
-</section>
 
-<section class="screen result" id="result">
-  <header class="topbar safe-top" style="margin:0 -18px"><button class="btn" onclick="retake()">‹</button><div class="title">Review Capture</div><button class="btn" onclick="closeResult()">×</button></header>
-  <div class="resultPreview"><img class="resultImg" id="resultImg"></div>
-  <div class="resultActions safe-bottom"><button class="btn" onclick="retake()">Retake</button><button class="btn primary" onclick="savePhoto()">Save / Share</button></div>
-</section>
-
-<section class="screen settings" id="settings">
-  <header class="topbar safe-top"><button class="btn" onclick="showScreen('home')">‹</button><div class="title">Settings</div><div></div></header>
-  <div class="scroll" style="flex:1">
-    <div class="settingGroup"><h3>Pose library</h3><div class="settingCard">
-      <div class="settingRow"><div><b>Built-in poses</b><small>Images detected from <code>poses/poseN.jpg</code></small></div><strong id="builtCount">0</strong></div>
-      <div class="settingRow"><div><b>Custom poses</b><small>Stored locally in IndexedDB</small></div><strong id="customCount">0</strong></div>
-      <div class="settingRow"><button class="btn" onclick="scanBuiltIn(true)">↻ Rescan poses folder</button><button class="btn primary" onclick="openUpload()">＋ Add images</button></div>
-    </div></div>
-    <div class="settingGroup"><h3>Capture defaults</h3><div class="settingCard">
-      <div class="settingRow"><div><b>Timer</b><small>Default countdown before capture</small></div><select class="select" style="width:130px" id="timerDefault" onchange="settings.timer=+this.value;saveSettings()"><option value="0">Off</option><option value="3">3 sec</option><option value="5">5 sec</option><option value="10">10 sec</option></select></div>
-      <div class="settingRow"><div><b>Photo quality</b><small>JPEG quality used when browser canvas capture is required</small></div><input style="width:120px" type="range" id="qualityDefault" min=".75" max="1" step=".01" onchange="settings.quality=+this.value;saveSettings()"></div>
-      <div class="settingRow"><div><b>Default camera</b><small>Camera used when starting the app</small></div><select class="select" style="width:130px" id="facingDefault" onchange="settings.facing=this.value;saveSettings()"><option value="environment">Back</option><option value="user">Front</option></select></div>
-    </div></div>
-    <div class="settingGroup"><h3>App</h3><div class="settingCard">
-      <div class="settingRow"><div><b>Install / Add to Home Screen</b><small>On Android, use the browser's install option. iPhone/iPad: Share → Add to Home Screen.</small></div><button class="btn primary" onclick="installApp()">Install</button></div>
-      <div class="settingRow"><div><b>Privacy</b><small>Custom pose images are stored locally. Camera frames are not uploaded by this app.</small></div><span style="color:var(--good)">Private</span></div>
-      <div class="settingRow"><div><b>Reset local data</b><small>Deletes custom poses, favorites, recents and preferences.</small></div><button class="btn danger" onclick="resetData()">Reset</button></div>
-    </div></div>
-    <div style="text-align:center;margin:25px;color:var(--muted);font-size:10px">PoseFlow · single-file web app</div>
+  <!-- ============================================================ -->
+  <!-- MANAGE CUSTOM POSES SHEET                                     -->
+  <!-- ============================================================ -->
+  <div id="sheet-manage-poses" class="sheet hidden">
+    <div class="sheet-panel">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-bold">Manage Custom Poses</h3>
+        <button onclick="closeSheet('sheet-manage-poses')" class="p-2 rounded-full" style="background:var(--card);"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <div id="manage-poses-list" class="space-y-2"></div>
+    </div>
   </div>
-</section>
 
-<div class="sheet" id="uploadSheet" onclick="sheetBackdrop(event,'uploadSheet')">
- <div class="sheetBox">
-  <div class="handle"></div><h2 class="modalTitle">Add pose images</h2><div class="muted">Import reference photos from your camera roll or files.</div>
-  <label class="uploadZone" for="fileInput" style="display:block;margin-top:15px;cursor:pointer">＋<b>Select images</b><small>JPG, PNG, WEBP · multiple selection supported</small></label>
-  <input id="fileInput" type="file" accept="image/*" multiple hidden onchange="handleFiles(this.files)">
-  <div class="formGrid"><div class="field"><label>Category</label><input id="uploadCategory" placeholder="e.g. Standing"></div><div class="field"><label>Name prefix</label><input id="uploadPrefix" placeholder="My Pose"></div></div>
-  <div class="fileList" id="fileList"></div>
-  <div class="progress" id="uploadProgress" style="display:none"><i></i></div>
-  <button class="btn primary" style="width:100%;margin-top:12px" onclick="finishUpload()">Save selected poses</button>
- </div>
-</div>
+  <!-- ============================================================ -->
+  <!-- GLOBAL LOADING VEIL -->
+  <!-- ============================================================ -->
+  <div id="global-loading" class="hidden absolute inset-0 z-[200] flex items-center justify-center" style="background:#000a;">
+    <div class="flex flex-col items-center gap-3">
+      <i data-lucide="loader-2" class="w-8 h-8 spin text-[color:var(--accent)]"></i>
+      <span id="global-loading-text" class="text-sm text-[color:var(--sub)]">Loading…</span>
+    </div>
+  </div>
 
-<div class="sheet" id="pickerSheet" onclick="sheetBackdrop(event,'pickerSheet')">
- <div class="sheetBox"><div class="handle"></div><h2 class="modalTitle">Choose reference</h2><div class="muted">Tap a pose to continue.</div><div class="grid" id="pickerGrid" style="padding:15px 0 0"></div></div>
-</div>
-
-<div class="toastWrap" id="toastWrap"></div>
+  <div class="toast-wrap" id="toast-wrap"></div>
 </div>
 
 <script>
-const $=id=>document.getElementById(id);
-const DB_NAME='poseflow_db',DB_VER=2,STORE='poses';
-const LSKEY='poseflow_state_v2';
-let db=null, stream=null, track=null, imageCapture=null, deferredInstall=null, captureTimer=null;
-let pendingFiles=[], capturedBlob=null, facing='environment';
-let settings=Object.assign({timer:0,quality:.95,facing:'environment'},loadLS());
-let state={poses:[],current:null,favs:[],recents:[],cat:'All',grid:false,safe:false,level:false,mirror:false,
-opacity:.38,scale:1,rotation:0,x:0,y:0,zoom:1};
-
-function loadLS(){try{return JSON.parse(localStorage.getItem(LSKEY)||'{}')}catch{return{}}}
-function saveLS(){localStorage.setItem(LSKEY,JSON.stringify({current:state.current,favs:state.favs,recents:state.recents,cat:state.cat}))}
-function saveSettings(){localStorage.setItem('poseflow_settings',JSON.stringify(settings))}
-try{Object.assign(settings,JSON.parse(localStorage.getItem('poseflow_settings')||'{}'))}catch{}
-
-function icon(name){
- const paths={
- camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h3l1.4-2h7.2L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="4"/></svg>',
- search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
- spark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></svg>'};
- return paths[name]||'';
-}
-$('welcomeIcon').innerHTML=icon('camera');$('brandIcon').innerHTML=icon('camera');$('searchIcon').innerHTML=icon('search');
-
-function idbOpen(){
- return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,DB_VER);
- r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'})};
- r.onsuccess=()=>{db=r.result;res(db)};r.onerror=()=>rej(r.error)})
-}
-async function dbPut(v){if(!db)await idbOpen();return new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(v);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
-async function dbAll(){if(!db)await idbOpen();return new Promise((res,rej)=>{const r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
-async function dbDel(id){if(!db)await idbOpen();return new Promise((res,rej)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).delete(id);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
-
-document.addEventListener('DOMContentLoaded',async()=>{
- state.favs=loadLS().favs||[];state.recents=loadLS().recents||[];state.current=loadLS().current||null;
- await loadCustom();await scanBuiltIn(false);renderAll();syncSettingsUI();
- if(!localStorage.getItem('poseflow_seen'))$('welcome').classList.add('active');else $('welcome').classList.remove('active');
- window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e});
- window.addEventListener('pagehide',stopCamera);
-});
-async function loadCustom(){try{const a=await dbAll();state.poses=a.map(x=>({...x,custom:true,image:x.dataUrl}))}catch(e){toast('Local pose storage is unavailable.','err')}}
-function builtPose(n){return{id:'b-'+n,num:n,title:'Pose #'+n,category:['Standing','Sitting','Portrait','Creative','Action','Lifestyle'][n%6],tags:['pose',String(n)],custom:false,image:'poses/pose'+n+'.jpg'}}
-async function probe(url){return new Promise(resolve=>{const i=new Image();let done=false;const f=v=>{if(done)return;done=true;resolve(v)};i.onload=()=>f(true);i.onerror=()=>f(false);setTimeout(()=>f(false),3500);i.src=url})}
-async function scanBuiltIn(force){
- const cached=+localStorage.getItem('poseflow_builtin_count')||0;
- let count=cached;
- if(force||!cached){count=0;let misses=0;for(let n=1;n<=500&&misses<8;n++){const ok=await probe('poses/pose'+n+'.jpg');if(ok){count=n;misses=0}else misses++}localStorage.setItem('poseflow_builtin_count',count)}
- state.poses=state.poses.filter(p=>p.custom).concat(Array.from({length:count},(_,i)=>builtPose(i+1)));
- if(!state.current&&state.poses[0])state.current=state.poses[0].id;
- $('builtCount').textContent=count;$('customCount').textContent=state.poses.filter(p=>p.custom).length;
- if(force)toast(count?'Found '+count+' built-in poses.':'No built-in poses found in poses/.',count?'ok':'err');
- renderAll();
-}
-function all(){return state.poses}
-function current(){return all().find(p=>p.id===state.current)||all()[0]}
-function setCurrent(id){
- if(!all().some(p=>p.id===id))return;
- state.current=id;state.recents=[id,...state.recents.filter(x=>x!==id)].slice(0,20);saveLS();renderAll();updateCameraPose()
-}
-function renderAll(){renderHome();renderLibrary();renderRecent();renderChips();renderPicker()}
-function renderHome(){const p=current();if(!p){$('heroImg').removeAttribute('src');$('heroTitle').textContent='No pose yet';$('heroCat').textContent='Add a reference image to begin';return}
- $('heroImg').src=p.image;$('heroTitle').textContent=p.title;$('heroCat').textContent=p.category}
-function renderRecent(){const a=state.recents.map(id=>all().find(p=>p.id===id)).filter(Boolean);$('recent').innerHTML=a.length?a.slice(0,10).map(p=>`<div class="thumb" onclick="setCurrent('${p.id}');launchCurrent()"><img src="${p.image}"><span>${esc(p.title)}</span></div>`).join(''):'<span class="muted">Your recent poses will appear here.</span>'}
-function categories(){return ['All','Favorites',...new Set(all().map(p=>p.category))]}
-function renderChips(){$('chips').innerHTML=categories().map(c=>`<button class="chip ${state.cat===c?'on':''}" onclick="state.cat='${escAttr(c)}';renderLibrary();renderChips()">${esc(c)}</button>`).join('')}
-function renderLibrary(){
- const q=($('search')?.value||'').toLowerCase();let a=all().filter(p=>(state.cat==='All'||(state.cat==='Favorites'?state.favs.includes(p.id):p.category===state.cat))&&(!q||(p.title+' '+p.category+' '+(p.tags||[]).join(' ')).toLowerCase().includes(q)));
- $('grid').innerHTML=a.length?a.map(p=>`<div class="poseCard" onclick="setCurrent('${p.id}');launchCurrent()"><img src="${p.image}" loading="lazy"><button class="fav" onclick="event.stopPropagation();toggleFav('${p.id}')">${state.favs.includes(p.id)?'♥':'♡'}</button>${p.custom?'<span class="customTag">CUSTOM</span>':''}<div class="poseInfo"><b>${esc(p.title)}</b><small>${esc(p.category)}</small></div></div>`).join(''):`<div class="empty">No poses found.<br><button class="btn primary" style="margin-top:12px" onclick="openUpload()">＋ Add a pose image</button></div>`
-}
-function renderPicker(){$('pickerGrid').innerHTML=all().map(p=>`<div class="poseCard" onclick="setCurrent('${p.id}');closeSheet('pickerSheet')"><img src="${p.image}"><div class="poseInfo"><b>${esc(p.title)}</b><small>${esc(p.category)}</small></div></div>`).join('')}
-function toggleFav(id){state.favs=state.favs.includes(id)?state.favs.filter(x=>x!==id):[...state.favs,id];saveLS();renderAll()}
-function randomPose(){if(!all().length){openUpload();return}setCurrent(all()[Math.floor(Math.random()*all().length)].id)}
-function focusSearch(){$('search').focus()}
-function previousPose(){movePose(-1)}function nextPose(){movePose(1)}
-function movePose(dir){const a=all(),i=a.findIndex(p=>p.id===state.current);if(a.length)setCurrent(a[(i+dir+a.length)%a.length].id)}
-
-function showScreen(id){
- ['home','library','settings','camera','result'].forEach(x=>$(x).classList.remove('active'));
- $(id).classList.add('active');
- if(id!=='camera')stopCamera();
- if(id==='settings')syncSettingsUI();
- if(id==='library')renderLibrary();
-}
-function dismissWelcome(){localStorage.setItem('poseflow_seen','1');$('welcome').classList.remove('active');showScreen('home')}
-function launchCurrent(){if(!current()){openUpload();return}showScreen('camera');startCamera()}
-function updateCameraPose(){const p=current();if(p){$('poseOverlay').src=p.image;$('camPoseName').textContent=p.title;resetOverlay()}}
-async function startCamera(){
- stopCamera();facing=settings.facing||'environment';
- try{
-  stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:facing},width:{ideal:4096},height:{ideal:2160},frameRate:{ideal:30}}});
- }catch(e){
-  try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:facing}})}catch(e2){toast(cameraError(e2),'err');showScreen('home');return}
- }
- const v=$('video');v.srcObject=stream;await v.play();track=stream.getVideoTracks()[0];
- imageCapture=('ImageCapture' in window)?new ImageCapture(track):null;
- const caps=track.getCapabilities?track.getCapabilities():{};
- const z=$('zoom');if(caps.zoom){z.min=caps.zoom.min;z.max=caps.zoom.max;z.step=caps.zoom.step||.1;z.value=caps.zoom.min||1;$('zoomVal').textContent=(+z.value).toFixed(1)+'×'}else{z.disabled=true}
- v.style.transform=facing==='user'?'scaleX(-1)':'';
- updateCameraPose();drawGuides();toast('Camera ready','ok');
-}
-function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}track=null;imageCapture=null}
-function closeCamera(){stopCamera();showScreen('home')}
-function cameraError(e){return ({NotAllowedError:'Camera permission was denied.',NotFoundError:'No camera was found.',NotReadableError:'Camera is busy in another app.',SecurityError:'Camera requires HTTPS.'}[e.name]||'Could not start the camera.')}
-async function switchCamera(){settings.facing=settings.facing==='environment'?'user':'environment';saveSettings();await startCamera()}
-async function toggleTorch(){if(!track)return;const caps=track.getCapabilities?.();if(!caps?.torch){toast('Torch is not available on this camera.','err');return}try{const on=track.getSettings().torch||false;await track.applyConstraints({advanced:[{torch:!on}]});$('flashBtn').classList.toggle('active',!on)}catch{toast('Torch could not be changed.','err')}}
-function toggleControls(){$('controls').classList.toggle('open')}
-function cycleTimer(){settings.timer=settings.timer===0?3:settings.timer===3?5:settings.timer===5?10:0;saveSettings();$('timerBtn').textContent=settings.timer?settings.timer+'s':'⌁'}
-function toggleGrid(){state.grid=!state.grid;setSwitch('gridSwitch',state.grid);drawGuides()}
-function toggleSafe(){state.safe=!state.safe;setSwitch('safeSwitch',state.safe);drawGuides()}
-function toggleLevel(){state.level=!state.level;setSwitch('levelSwitch',state.level);drawGuides()}
-function setSwitch(id,on){$(id).classList.toggle('on',on)}
-function toggleMirror(){state.mirror=!state.mirror;setSwitch('mirrorSwitch',state.mirror);updateOverlay()}
-function updateOverlay(){
- state.opacity=+$('opacity').value;state.scale=+$('scale').value;state.rotation=+$('rotation').value;
- $('opVal').textContent=Math.round(state.opacity*100)+'%';$('scaleVal').textContent=Math.round(state.scale*100)+'%';$('rotVal').textContent=state.rotation+'°';
- const sx=state.mirror?-1:1;$('poseOverlay').style.opacity=state.opacity;$('poseOverlay').style.transform=`translate(${state.x}px,${state.y}px) rotate(${state.rotation}deg) scale(${state.scale}) scaleX(${sx})`
-}
-function resetOverlay(){state.x=0;state.y=0;state.opacity=.38;state.scale=1;state.rotation=0;state.mirror=false;['opacity','scale','rotation'].forEach((id,i)=>$(id).value=[.38,1,0][i]);setSwitch('mirrorSwitch',false);updateOverlay()}
-function updateZoom(){if(!track)return;const v=+$('zoom').value;state.zoom=v;$('zoomVal').textContent=v.toFixed(1)+'×';track.applyConstraints({advanced:[{zoom:v}]}).catch(()=>{})}
-function drawGuides(){
- const c=$('guideCanvas'),v=$('video');c.width=v.videoWidth||1280;c.height=v.videoHeight||720;const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);
- if(state.grid){x.strokeStyle='#ffffff55';x.lineWidth=2;for(let i=1;i<3;i++){x.beginPath();x.moveTo(c.width*i/3,0);x.lineTo(c.width*i/3,c.height);x.stroke();x.beginPath();x.moveTo(0,c.height*i/3);x.lineTo(c.width,c.height*i/3);x.stroke()}}
- if(state.safe){x.strokeStyle='#ffffff88';x.setLineDash([10,10]);x.strokeRect(c.width*.1,c.height*.1,c.width*.8,c.height*.8);x.setLineDash([])}
- if(state.level){x.strokeStyle='#ffffffaa';x.beginPath();x.moveTo(c.width*.08,c.height/2);x.lineTo(c.width*.92,c.height/2);x.stroke()}
-}
-window.addEventListener('resize',()=>{if($('camera').classList.contains('active'))drawGuides()});
-
-let pointers=new Map(),gesture=null;
-$('overlayWrap').addEventListener('pointerdown',e=>{pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});$('overlayWrap').setPointerCapture(e.pointerId);
- if(pointers.size===1)gesture={type:'drag',x:e.clientX,y:e.clientY,ox:state.x,oy:state.y};
- if(pointers.size===2){const a=[...pointers.values()];gesture={type:'pinch',d:dist(a[0],a[1]),a:angle(a[0],a[1]),s:state.scale,r:state.rotation}}
-});
-$('overlayWrap').addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId)||!gesture)return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
- if(pointers.size===1&&gesture.type==='drag'){state.x=gesture.ox+e.clientX-gesture.x;state.y=gesture.oy+e.clientY-gesture.y;updateOverlay()}
- if(pointers.size===2){const a=[...pointers.values()];state.scale=Math.max(.25,Math.min(3,gesture.s*dist(a[0],a[1])/gesture.d));state.rotation=Math.max(-90,Math.min(90,gesture.r+angle(a[0],a[1])-gesture.a));$('scale').value=state.scale;$('rotation').value=state.rotation;updateOverlay()}
-});
-['pointerup','pointercancel'].forEach(ev=>$('overlayWrap').addEventListener(ev,e=>{pointers.delete(e.pointerId);if(!pointers.size)gesture=null}));
-function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}function angle(a,b){return Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI}
-
-async function captureSequence(){
- if(!stream)return;clearTimeout(captureTimer);if(settings.timer){let n=settings.timer;showCamStatus('Get ready · '+n);captureTimer=setInterval(()=>{n--;if(n>0)showCamStatus('Get ready · '+n);else{clearInterval(captureTimer);hideCamStatus();executeCapture()}},1000)}else executeCapture()
-}
-function showCamStatus(t){$('camStatus').textContent=t;$('camStatus').style.display='block'}function hideCamStatus(){$('camStatus').style.display='none'}
-async function executeCapture(){
- try{
-  const blob=imageCapture?await imageCapture.takePhoto():await canvasCapture();
-  capturedBlob=blob;$('resultImg').src=URL.createObjectURL(blob);stopCamera();showScreen('result')
- }catch(e){toast('Capture failed. Try again.','err')}
-}
-async function canvasCapture(){
- const v=$('video'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const x=c.getContext('2d');
- if(facing==='user'){x.translate(c.width,0);x.scale(-1,1)}x.drawImage(v,0,0,c.width,c.height);
- return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(), 'image/jpeg',+$('quality').value))
-}
-async function savePhoto(){
- if(!capturedBlob)return;const f=new File([capturedBlob],`poseflow-${Date.now()}.jpg`,{type:'image/jpeg'});
- if(navigator.canShare?.({files:[f]})){try{await navigator.share({files:[f],title:'PoseFlow photo'});return}catch(e){if(e.name==='AbortError')return}}
- const u=URL.createObjectURL(f),a=document.createElement('a');a.href=u;a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);toast('Photo saved.','ok')
-}
-function retake(){showScreen('camera');startCamera()}function closeResult(){showScreen('home')}
-
-async function handleFiles(files){
- pendingFiles=Array.from(files).filter(f=>f.type.startsWith('image/'));$('fileList').innerHTML='';
- for(const f of pendingFiles){const url=URL.createObjectURL(f);$('fileList').insertAdjacentHTML('beforeend',`<div class="fileItem"><img src="${url}"><span>${esc(f.name)}</span></div>`)}
-}
-function openUpload(){pendingFiles=[];$('fileInput').value='';$('fileList').innerHTML='';$('uploadProgress').style.display='none';$('uploadSheet').classList.add('open')}
-function finishUpload(){
- if(!pendingFiles.length){toast('Choose at least one image first.','err');return}
- const cat=$('uploadCategory').value.trim()||'Custom',pre=$('uploadPrefix').value.trim()||'My Pose',bar=$('uploadProgress');bar.style.display='block';let i=0;
- const next=async()=>{if(i>=pendingFiles.length){bar.querySelector('i').style.width='100%';await loadCustom();closeSheet('uploadSheet');renderAll();toast('Added '+pendingFiles.length+' pose image(s).','ok');return}
-  const f=pendingFiles[i++];try{const data=await fileToDataURL(f,2200,.94),id='c-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),rec={id,title:pre+' '+i,category:cat,tags:[cat.toLowerCase(),'custom'],dataUrl:data};await dbPut(rec)}catch(e){toast('Could not import '+f.name,'err')}
-  bar.querySelector('i').style.width=Math.round(i/pendingFiles.length*100)+'%';next()}
- next()
-}
-function fileToDataURL(file,max,q){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(r.error);r.onload=()=>{const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;if(Math.max(w,h)>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s)}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',q))};img.onerror=()=>rej();img.src=r.result};r.readAsDataURL(file)})}
-function openPosePicker(){renderPicker();$('pickerSheet').classList.add('open')}function sheetBackdrop(e,id){if(e.target.id===id)closeSheet(id)}function closeSheet(id){$(id).classList.remove('open')}
-
-async function resetData(){if(!confirm('Delete all custom poses, favorites, recents and preferences?'))return;localStorage.clear();if(db){const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).clear()}location.reload()}
-async function installApp(){if(deferredInstall){deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null}else toast('Use your browser menu to install / Add to Home Screen.','ok')}
-function syncSettingsUI(){$('builtCount').textContent=all().filter(p=>!p.custom).length;$('customCount').textContent=all().filter(p=>p.custom).length;$('timerDefault').value=settings.timer;$('qualityDefault').value=settings.quality;$('facingDefault').value=settings.facing}
-function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function escAttr(s){return esc(s).replace(/`/g,'&#96;')}
-function toast(msg,type=''){const e=document.createElement('div');e.className='toast '+type;e.textContent=msg;$('toastWrap').appendChild(e);setTimeout(()=>e.remove(),2800)}
-</script>
-<script>
-(function(){
- const manifest={name:'PoseFlow',short_name:'PoseFlow',start_url:'.',display:'standalone',background_color:'#09090b',theme_color:'#09090b',orientation:'portrait',icons:[]};
- const blob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});$('manifest').href=URL.createObjectURL(blob);
+/* ================================================================
+   0. CONFIG / MANIFEST (data-URI, keeps single-file requirement)
+   ================================================================ */
+(function setManifest(){
+  const manifest = {
+    name:"PoseCam Pro", short_name:"PoseCam", start_url:".", scope:".",
+    display:"standalone", background_color:"#0a0a0d", theme_color:"#0a0a0d", orientation:"portrait-primary",
+    icons:[{ src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230a0a0d'/%3E%3Ccircle cx='256' cy='190' r='72' fill='%23818cf8'/%3E%3Cpath d='M140 420c0-90 52-150 116-150s116 60 116 150' fill='none' stroke='%23818cf8' stroke-width='28' stroke-linecap='round'/%3E%3C/svg%3E", sizes:"512x512", type:"image/svg+xml", purpose:"any maskable" }]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
+  document.getElementById('manifest-link').href = URL.createObjectURL(blob);
 })();
+
+/* ================================================================
+   1. TINY INDEXEDDB WRAPPER  (stores custom pose image blobs)
+   ================================================================ */
+const DB_NAME = 'posecam_db', DB_VERSION = 1, STORE = 'custom_poses';
+function idbOpen(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(STORE)){
+        db.createObjectStore(STORE, { keyPath:'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbPut(record){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(STORE,'readwrite');
+    tx.objectStore(STORE).put(record);
+    tx.oncomplete = ()=>resolve(true);
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function idbDelete(id){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(STORE,'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = ()=>resolve(true);
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function idbGetAll(){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(STORE,'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = ()=>resolve(req.result || []);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+/* ================================================================
+   2. APP STATE
+   ================================================================ */
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v===null? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+const state = {
+  builtInCount: LS.get('pc_builtin_count', 0),
+  customPoses: [],           // {id, title, category, image(dataURL), tags, custom:true}
+  builtInPoses: [],          // {id, title, category, image(path), tags, custom:false}
+  favorites: LS.get('pc_favs', []),
+  recents: LS.get('pc_recents', []),
+  currentPoseId: LS.get('pc_current_pose', 'b-1'),
+  selectedCategory: 'All',
+
+  facingMode: 'environment',
+  timerDuration: LS.get('pc_timer', 0),
+  resolutionMode: LS.get('pc_res', 'max'),
+  aspectMode: LS.get('pc_aspect', 'native'),
+  jpegQuality: LS.get('pc_jpeg_q', 0.95),
+  aiDefault: LS.get('pc_ai_default', false),
+
+  overlayOpacity: 0.4, overlayScale: 1.0, overlayRotate: 0,
+  overlayTranslate: {x:0, y:0}, overlayMirrored: false, overlayLocked: false,
+
+  mediaStream: null, imageCapture: null, videoTrack: null,
+  capturedBlob: null, originalCapturedBlob: null,
+  aiEnabled: false, poseDetector: null, aiRunning:false,
+  refLandmarkCache: new Map(),
+  deferredInstallPrompt: null,
+  pendingAddFiles: []
+};
+
+function allPoses(){ return [...state.builtInPoses, ...state.customPoses]; }
+function findPose(id){ return allPoses().find(p=>p.id===id); }
+
+/* ================================================================
+   3. INIT / NAVIGATION
+   ================================================================ */
+// Runs a step, logs/toasts on failure, but NEVER lets one broken step
+// (e.g. a blocked CDN) stop the rest of app initialization from running.
+async function step(label, fn){
+  try{ await fn(); }
+  catch(e){ console.error('Init step failed:', label, e); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await step('icons', () => safeIcons());
+  await step('overlay gestures', () => wireOverlayGestures());
+
+  if(!LS.get('pc_seen_welcome', false)){
+    document.getElementById('screen-welcome').classList.add('active');
+  }
+
+  await step('load custom poses', () => loadCustomPosesFromDB());
+  await step('scan built-in poses', () => rescanBuiltInPoses(false));
+  await step('render UI', () => renderAll());
+
+  await step('restore settings UI', () => {
+    document.getElementById('select-resolution').value = state.resolutionMode;
+    document.getElementById('select-aspect').value = state.aspectMode;
+    document.getElementById('slider-jpeg-quality').value = state.jpegQuality;
+    document.getElementById('val-jpeg-quality').innerText = Math.round(state.jpegQuality*100)+'%';
+    setSwitch('switch-ai-default', state.aiDefault);
+  });
+
+  await step('init AI pose detector', () => {
+    initAIPoseDetector();
+    const note = document.getElementById('ai-availability-note');
+    if(window.__MP_FAILED__ || typeof Pose === 'undefined'){
+      note.innerText = 'AI Pose Assistant library failed to load (no internet on first run?) — it will work once the CDN script is reachable.';
+    } else {
+      note.innerText = 'Runs fully on-device via MediaPipe. No video frames ever leave your browser.';
+    }
+  });
+
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    state.deferredInstallPrompt = e;
+    const btn = document.getElementById('btn-install-native');
+    if(btn) btn.classList.remove('hidden');
+  });
+
+  // Final safety net: whatever happened above, make sure some screen is visible.
+  if(!document.querySelector('.screen.active')){
+    document.getElementById('screen-home').classList.add('active');
+  }
+});
+
+function dismissWelcome(){
+  LS.set('pc_seen_welcome', true);
+  document.getElementById('screen-welcome').classList.remove('active');
+}
+
+// Safe icon renderer: never throws even if the Lucide CDN failed to load,
+// so one blocked script can't halt the rest of the app's initialization/UI.
+function safeIcons(){
+  try{ if(window.lucide && typeof lucide.createIcons==='function') lucide.createIcons(); }
+  catch(e){ console.warn('Icon render skipped', e); }
+}
+
+// Single source of truth for which screen is visible. Uses a plain CSS
+// class (.screen / .screen.active) instead of Tailwind's `hidden`, so
+// navigation still works correctly even if the Tailwind CDN fails.
+function showScreen(screenId){
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+  const target = document.getElementById(screenId);
+  if(target) target.classList.add('active');
+  if(screenId !== 'screen-camera') stopCamera();
+  safeIcons();
+}
+function switchScreen(screenId){ showScreen(screenId); }
+
+function showGlobalLoading(text){
+  document.getElementById('global-loading-text').innerText = text || 'Loading…';
+  document.getElementById('global-loading').classList.remove('hidden');
+}
+function hideGlobalLoading(){ document.getElementById('global-loading').classList.add('hidden'); }
+
+function toast(msg, type){
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type==='err'?'err':type==='ok'?'ok':'');
+  const iconName = type==='err' ? 'alert-circle' : type==='ok' ? 'check-circle-2' : 'info';
+  el.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 shrink-0"></i><span>${msg}</span>`;
+  wrap.appendChild(el);
+  safeIcons();
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(), 320); }, 3200);
+}
+
+function setSwitch(id, on){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.toggle('on', !!on);
+}
+
+function handleImageError(img){
+  const svg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="%2317171b"/><circle cx="200" cy="180" r="50" fill="%23232329"/><path d="M120 380 C120 280, 280 280, 280 380 L280 520 L120 520 Z" fill="%23232329"/><text x="50%" y="92%" text-anchor="middle" fill="%239a9aa3" font-family="sans-serif" font-size="14">Missing image</text></svg>`;
+  img.onerror = null;
+  img.src = svg;
+}
+
+/* ================================================================
+   4. BUILT-IN POSE AUTO-DETECTION  (poses/poseN.jpg)
+   ================================================================ */
+function probeImage(url){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    let done = false;
+    const finish = (ok)=>{ if(done) return; done = true; resolve(ok); };
+    img.onload = ()=> finish(true);
+    img.onerror = ()=> finish(false);
+    setTimeout(()=>finish(false), 6000);
+    img.src = url;
+  });
+}
+
+async function rescanBuiltInPoses(manualTrigger){
+  if(manualTrigger) showGlobalLoading('Scanning poses/ folder…');
+  const MAX_CHECK = 400, BATCH = 12, MISS_STREAK_STOP = 10;
+  let found = 0, missStreak = 0, n = 1;
+
+  // fast path: if we already cached a count and this isn't a forced rescan, trust cache first paint
+  const cached = LS.get('pc_builtin_count', 0);
+  if(!manualTrigger && cached > 0){
+    found = cached;
+  } else {
+    while(n <= MAX_CHECK && missStreak < MISS_STREAK_STOP){
+      const batchIds = [];
+      for(let i=0;i<BATCH && n<=MAX_CHECK;i++, n++) batchIds.push(n);
+      const results = await Promise.all(batchIds.map(id => probeImage(`poses/pose${id}.jpg`)));
+      results.forEach((ok, idx)=>{
+        if(ok){ found = Math.max(found, batchIds[idx]); missStreak = 0; }
+        else { missStreak++; }
+      });
+    }
+    LS.set('pc_builtin_count', found);
+  }
+
+  state.builtInCount = found;
+  const categories = ['Standing','Sitting','Creative / Urban','Action','Portrait','Couple','Group'];
+  state.builtInPoses = Array.from({length: found}, (_, i)=>{
+    const id = i+1;
+    const category = categories[id % categories.length];
+    return { id:`b-${id}`, num:id, title:`Pose #${id}`, category, image:`poses/pose${id}.jpg`, tags:[category.toLowerCase(), `pose${id}`], custom:false };
+  });
+
+  if(!findPose(state.currentPoseId) && allPoses().length){
+    state.currentPoseId = allPoses()[0].id;
+  }
+
+  const el = document.getElementById('setting-detected-count');
+  if(el) el.innerText = found>0 ? found : 'None found';
+  renderAll();
+  if(manualTrigger){
+    hideGlobalLoading();
+    toast(found>0 ? `Found ${found} pose image(s) in poses/` : 'No pose images found in poses/ — upload manually below.', found>0?'ok':'err');
+  }
+}
+
+function applyManualPoseCount(){
+  const input = document.getElementById('input-manual-count');
+  const val = parseInt(input.value, 10);
+  if(isNaN(val) || val < 0){ toast('Enter a valid number', 'err'); return; }
+  LS.set('pc_builtin_count', val);
+  input.value = '';
+  rescanBuiltInPoses(true);
+}
+
+/* ================================================================
+   5. CUSTOM POSES (manual add via IndexedDB)
+   ================================================================ */
+async function loadCustomPosesFromDB(){
+  try{
+    const records = await idbGetAll();
+    state.customPoses = records.map(r => ({
+      id:r.id, title:r.title, category:r.category, image:r.dataUrl, tags:r.tags||[], custom:true
+    }));
+    document.getElementById('setting-custom-count').innerText = state.customPoses.length;
+  }catch(e){
+    console.warn('IndexedDB unavailable', e);
+    toast('Local storage for custom poses is unavailable in this browser.', 'err');
+  }
+}
+
+function openAddPoseSheet(){
+  document.getElementById('sheet-add-pose').classList.remove('hidden');
+  document.getElementById('add-pose-preview-list').innerHTML = '';
+  state.pendingAddFiles = [];
+  safeIcons();
+}
+function closeSheet(id){ document.getElementById(id).classList.add('hidden'); }
+
+async function handleAddPoseFiles(fileList){
+  const files = Array.from(fileList || []);
+  if(!files.length) return;
+  const listEl = document.getElementById('add-pose-preview-list');
+  listEl.innerHTML = '';
+  showGlobalLoading('Processing image(s)…');
+
+  const categoryInput = document.getElementById('add-pose-category').value.trim() || 'Custom';
+  const prefixInput = document.getElementById('add-pose-prefix').value.trim() || 'My Pose';
+
+  let added = 0;
+  for(const file of files){
+    if(!file.type.startsWith('image/')) continue;
+    try{
+      const dataUrl = await resizeImageFile(file, 1600, 0.9);
+      const id = `c-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+      const title = `${prefixInput} ${added+1}`;
+      const record = { id, title, category: categoryInput, tags:[categoryInput.toLowerCase()], dataUrl };
+      await idbPut(record);
+      state.customPoses.push({ id, title, category:categoryInput, image:dataUrl, tags:record.tags, custom:true });
+
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-3 p-2 rounded-xl';
+      row.style.background = 'var(--bg2)';
+      row.innerHTML = `<img src="${dataUrl}" class="w-10 h-10 rounded-lg object-cover"><div class="flex-1 text-xs"><p class="font-medium">${title}</p><p style="color:var(--sub)">${categoryInput}</p></div><i data-lucide="check-circle-2" class="w-4 h-4" style="color:var(--good)"></i>`;
+      listEl.appendChild(row);
+      added++;
+    }catch(e){
+      console.error(e);
+      toast(`Failed to process ${file.name}`, 'err');
+    }
+  }
+  safeIcons();
+  hideGlobalLoading();
+  document.getElementById('setting-custom-count').innerText = state.customPoses.length;
+  if(added){
+    toast(`Added ${added} pose image${added>1?'s':''} to your library`, 'ok');
+    renderAll();
+  }
+}
+
+function resizeImageFile(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Invalid image file'));
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > maxDim || height > maxDim){
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width*scale); height = Math.round(height*scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function openManagePoses(){
+  const listEl = document.getElementById('manage-poses-list');
+  if(!state.customPoses.length){
+    listEl.innerHTML = `<p class="text-sm text-center py-8" style="color:var(--sub)">No custom poses yet. Add some from the Library or Home screen.</p>`;
+  } else {
+    listEl.innerHTML = state.customPoses.map(p => `
+      <div class="flex items-center gap-3 p-2.5 rounded-xl" style="background:var(--bg2); border:1px solid var(--line);">
+        <img src="${p.image}" class="w-12 h-12 rounded-lg object-cover">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium truncate">${p.title}</p>
+          <p class="text-xs truncate" style="color:var(--sub)">${p.category}</p>
+        </div>
+        <button onclick="renamePose('${p.id}')" class="p-2 rounded-full" style="background:var(--line)"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+        <button onclick="deleteCustomPose('${p.id}')" class="p-2 rounded-full" style="background:#7f1d1d33; color:var(--danger)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      </div>
+    `).join('');
+  }
+  document.getElementById('sheet-manage-poses').classList.remove('hidden');
+  safeIcons();
+}
+
+function renamePose(id){
+  const p = state.customPoses.find(x=>x.id===id);
+  if(!p) return;
+  const newTitle = prompt('Rename pose', p.title);
+  if(newTitle === null) return;
+  const newCat = prompt('Category', p.category);
+  p.title = newTitle.trim() || p.title;
+  p.category = (newCat || p.category).trim();
+  idbPut({ id:p.id, title:p.title, category:p.category, tags:[p.category.toLowerCase()], dataUrl:p.image });
+  renderAll(); openManagePoses();
+  toast('Pose updated', 'ok');
+}
+
+async function deleteCustomPose(id){
+  if(!confirm('Delete this custom pose? This cannot be undone.')) return;
+  await idbDelete(id);
+  state.customPoses = state.customPoses.filter(p=>p.id!==id);
+  state.favorites = state.favorites.filter(f=>f!==id);
+  state.recents = state.recents.filter(r=>r!==id);
+  LS.set('pc_favs', state.favorites); LS.set('pc_recents', state.recents);
+  document.getElementById('setting-custom-count').innerText = state.customPoses.length;
+  if(state.currentPoseId === id && allPoses().length){ state.currentPoseId = allPoses()[0].id; }
+  renderAll(); openManagePoses();
+  toast('Custom pose deleted', 'ok');
+}
+
+/* ================================================================
+   6. LIBRARY RENDERING / FAVORITES / RECENTS
+   ================================================================ */
+function renderAll(){
+  renderCategoryChips();
+  renderLibraryGrid();
+  renderQuickBar();
+  updateSelectedPoseUI();
+}
+
+function categoryList(){
+  const cats = new Set(['All','Favorites']);
+  allPoses().forEach(p=>cats.add(p.category));
+  return Array.from(cats);
+}
+
+function renderCategoryChips(){
+  const container = document.getElementById('category-chips');
+  container.innerHTML = categoryList().map(cat => `
+    <button onclick="selectCategory('${cat.replace(/'/g,"\\'")}')" class="px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition"
+      style="${state.selectedCategory===cat ? 'background:var(--accent2); color:#fff;' : 'background:var(--card); border:1px solid var(--line); color:var(--sub);'}">
+      ${cat}
+    </button>
+  `).join('');
+}
+function selectCategory(cat){ state.selectedCategory = cat; renderCategoryChips(); renderLibraryGrid(); }
+
+function renderLibraryGrid(){
+  const searchEl = document.getElementById('library-search');
+  const searchVal = searchEl ? searchEl.value.toLowerCase() : '';
+  const container = document.getElementById('library-grid');
+  const statusEl = document.getElementById('library-status');
+  const list = allPoses();
+  statusEl.innerText = `${list.length} pose${list.length===1?'':'s'} available (${state.builtInPoses.length} built-in, ${state.customPoses.length} custom)`;
+
+  let filtered = list.filter(p=>{
+    const matchesCat = state.selectedCategory==='All' ? true : state.selectedCategory==='Favorites' ? state.favorites.includes(p.id) : p.category===state.selectedCategory;
+    const matchesSearch = !searchVal || p.title.toLowerCase().includes(searchVal) || p.category.toLowerCase().includes(searchVal) || (p.tags||[]).some(t=>t.includes(searchVal));
+    return matchesCat && matchesSearch;
+  });
+
+  if(!filtered.length){
+    container.innerHTML = `<div class="col-span-full py-14 text-center" style="color:var(--sub)">
+      <i data-lucide="image-off" class="w-8 h-8 mx-auto mb-3 opacity-50"></i>
+      <p class="text-sm mb-3">No poses found.</p>
+      <button onclick="openAddPoseSheet()" class="px-4 py-2 rounded-full text-xs font-semibold" style="background:#6366f126;border:1px solid #6366f166;color:var(--accent)">Add a pose image</button>
+    </div>`;
+    safeIcons();
+    return;
+  }
+
+  container.innerHTML = filtered.map(p => `
+    <div onclick="selectPoseAndLaunch('${p.id}')" class="group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer card-press transition" style="background:var(--card); border:1px solid var(--line);">
+      <img src="${p.image}" loading="lazy" onerror="handleImageError(this)" class="w-full h-full object-cover">
+      <div class="absolute inset-0" style="background:linear-gradient(to top,#000000cc,transparent 60%)"></div>
+      ${p.custom ? `<span class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold" style="background:#6366f1cc;color:#fff">CUSTOM</span>` : ''}
+      <button onclick="event.stopPropagation(); toggleFavorite('${p.id}')" class="absolute top-2 right-2 p-2 rounded-full" style="background:#00000066">
+        <i data-lucide="heart" class="w-4 h-4" style="${state.favorites.includes(p.id) ? 'color:#818cf8;fill:#818cf8' : 'color:#fff'}"></i>
+      </button>
+      <div class="absolute bottom-2.5 left-2.5 right-2.5 text-left">
+        <p class="text-xs font-semibold text-white truncate">${p.title}</p>
+        <p class="text-[10px] truncate" style="color:#d4d4d8">${p.category}</p>
+      </div>
+    </div>
+  `).join('');
+  safeIcons();
+}
+
+function toggleFavorite(id){
+  if(state.favorites.includes(id)) state.favorites = state.favorites.filter(f=>f!==id);
+  else state.favorites.push(id);
+  LS.set('pc_favs', state.favorites);
+  renderLibraryGrid(); updateSelectedPoseUI();
+}
+function toggleFavoriteCurrentPose(){ toggleFavorite(state.currentPoseId); }
+
+function renderQuickBar(){
+  const container = document.getElementById('home-quick-bar');
+  const recentPoses = state.recents.slice(0,10).map(id=>findPose(id)).filter(Boolean);
+  if(!recentPoses.length){
+    container.innerHTML = `<p class="text-xs" style="color:var(--sub)">No recent poses yet — pick one from the library.</p>`;
+    return;
+  }
+  container.innerHTML = recentPoses.map(p => `
+    <div onclick="openCameraWithPose('${p.id}')" class="relative shrink-0 w-[76px] aspect-[3/4] rounded-xl overflow-hidden cursor-pointer card-press transition" style="background:var(--card); border:1px solid var(--line);">
+      <img src="${p.image}" onerror="handleImageError(this)" class="w-full h-full object-cover">
+      <div class="absolute inset-0" style="background:#00000033"></div>
+      <span class="absolute bottom-1 left-1.5 text-[9px] font-bold text-white truncate max-w-[90%]">${p.title}</span>
+    </div>
+  `).join('');
+}
+
+function selectPoseAndLaunch(id){ setCurrentPose(id); openCameraWithPose(id); }
+function selectRandomPose(){
+  const list = allPoses();
+  if(!list.length){ toast('No poses available yet — add one first.', 'err'); return; }
+  const random = list[Math.floor(Math.random()*list.length)];
+  selectPoseAndLaunch(random.id);
+}
+
+function setCurrentPose(id){
+  if(!findPose(id)) return;
+  state.currentPoseId = id;
+  LS.set('pc_current_pose', id);
+  state.recents = [id, ...state.recents.filter(r=>r!==id)].slice(0, 20);
+  LS.set('pc_recents', state.recents);
+  renderQuickBar(); updateSelectedPoseUI();
+  state.refLandmarkCache.delete(id); // force fresh AI analysis if pose changes
+}
+
+function updateSelectedPoseUI(){
+  const pose = findPose(state.currentPoseId) || allPoses()[0];
+  const homeImg = document.getElementById('home-selected-preview');
+  if(!pose){
+    homeImg.removeAttribute('src');
+    document.getElementById('home-selected-title').innerText = 'No poses yet';
+    document.getElementById('home-selected-category').innerText = 'Add a pose to get started';
+    return;
+  }
+  homeImg.src = pose.image; homeImg.onerror = ()=>handleImageError(homeImg);
+  document.getElementById('home-selected-title').innerText = pose.title;
+  document.getElementById('home-selected-category').innerText = pose.category;
+
+  const overlayImg = document.getElementById('pose-overlay-img');
+  overlayImg.src = pose.image; overlayImg.onerror = ()=>handleImageError(overlayImg);
+  document.getElementById('camera-current-pose-name').innerText = pose.title;
+
+  const isFav = state.favorites.includes(state.currentPoseId);
+  const favIcon = document.getElementById('icon-camera-fav');
+  if(favIcon){ favIcon.style.color = isFav ? '#818cf8' : '#fff'; favIcon.style.fill = isFav ? '#818cf8' : 'none'; }
+}
+
+function prevPose(){
+  const list = allPoses(); if(!list.length) return;
+  const idx = list.findIndex(p=>p.id===state.currentPoseId);
+  const next = list[(idx-1+list.length)%list.length];
+  setCurrentPose(next.id);
+}
+function nextPose(){
+  const list = allPoses(); if(!list.length) return;
+  const idx = list.findIndex(p=>p.id===state.currentPoseId);
+  const next = list[(idx+1)%list.length];
+  setCurrentPose(next.id);
+}
+
+/* ================================================================
+   7. CAMERA CORE
+   ================================================================ */
+async function openCameraWithPose(poseId){
+  if(!allPoses().length){
+    toast('Add or detect at least one pose image first.', 'err');
+    openAddPoseSheet();
+    return;
+  }
+  if(poseId) setCurrentPose(poseId);
+  showScreen('screen-camera');
+  resetOverlayTransform();
+  if(state.aiDefault) { state.aiEnabled = true; setSwitch('switch-ai', true); document.getElementById('ai-feedback-pill').classList.remove('hidden'); }
+  await startCamera();
+  safeIcons();
+}
+
+function buildVideoConstraints(){
+  const video = { facingMode: state.facingMode, frameRate: { ideal: 30 } };
+  if(state.resolutionMode === 'max'){
+    video.width = { ideal: 4096 }; video.height = { ideal: 2160 };
+  } else if(state.resolutionMode === '4k'){
+    video.width = { ideal: 3840, max: 3840 }; video.height = { ideal: 2160, max: 2160 };
+  } else {
+    video.width = { ideal: 1920, max: 1920 }; video.height = { ideal: 1080, max: 1080 };
+  }
+  if(state.aspectMode !== 'native'){
+    const [w,h] = state.aspectMode.split(':').map(Number);
+    video.aspectRatio = { ideal: w/h };
+  }
+  return video;
+}
+
+function friendlyCameraError(err){
+  const name = err && err.name;
+  const map = {
+    NotAllowedError: 'Camera permission was denied. Enable camera access for this site in your browser settings.',
+    NotFoundError: 'No camera was found on this device.',
+    NotReadableError: 'Your camera is already being used by another app. Close it and try again.',
+    OverconstrainedError: 'This camera does not support the requested settings — retrying with defaults.',
+    SecurityError: 'Camera access requires a secure (https) connection.',
+    AbortError: 'Camera start was interrupted. Please try again.'
+  };
+  return map[name] || 'Unable to access the camera. Please check permissions and try again.';
+}
+
+async function startCamera(){
+  stopCamera();
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toast('This browser does not support camera access.', 'err');
+    closeCameraScreen();
+    return;
+  }
+  let constraints = { audio:false, video: buildVideoConstraints() };
+  try{
+    state.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+  }catch(err){
+    console.warn('Primary constraints failed, retrying basic', err);
+    try{
+      state.mediaStream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode: state.facingMode } });
+      toast(friendlyCameraError(err), 'err');
+    }catch(err2){
+      console.error('Camera error', err2);
+      toast(friendlyCameraError(err2), 'err');
+      closeCameraScreen();
+      return;
+    }
+  }
+
+  const videoTrack = state.mediaStream.getVideoTracks()[0];
+  state.videoTrack = videoTrack;
+  const videoEl = document.getElementById('webcam');
+  videoEl.srcObject = state.mediaStream;
+  videoEl.classList.toggle('mirror', state.facingMode === 'user');
+
+  state.imageCapture = ('ImageCapture' in window && videoTrack) ? new ImageCapture(videoTrack) : null;
+
+  if(state.aiEnabled) processAIFrames();
+}
+
+function stopCamera(){
+  if(state.mediaStream){ state.mediaStream.getTracks().forEach(t=>t.stop()); state.mediaStream = null; }
+  state.imageCapture = null; state.videoTrack = null;
+  state.aiRunning = false;
+}
+
+function closeCameraScreen(){
+  showScreen('screen-home');
+}
+
+async function switchCameraFacing(){
+  state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+  await startCamera();
+}
+
+/* ================================================================
+   8. OVERLAY TRANSFORM (drag / pinch / sliders)
+   ================================================================ */
+function applyOverlayTransforms(){
+  const img = document.getElementById('pose-overlay-img');
+  img.style.opacity = state.overlayOpacity;
+  let t = `translate(${state.overlayTranslate.x}px, ${state.overlayTranslate.y}px) rotate(${state.overlayRotate}deg) scale(${state.overlayScale})`;
+  if(state.overlayMirrored) t += ' scaleX(-1)';
+  img.style.transform = t;
+}
+function updateOverlayOpacity(v){ state.overlayOpacity = parseFloat(v); document.getElementById('val-opacity').innerText = Math.round(state.overlayOpacity*100)+'%'; applyOverlayTransforms(); }
+function updateOverlayScale(v){ state.overlayScale = parseFloat(v); document.getElementById('val-scale').innerText = Math.round(state.overlayScale*100)+'%'; applyOverlayTransforms(); }
+function updateOverlayRotation(v){ state.overlayRotate = parseFloat(v); document.getElementById('val-rotate').innerText = Math.round(state.overlayRotate)+'°'; applyOverlayTransforms(); }
+function toggleOverlayMirror(){ state.overlayMirrored = !state.overlayMirrored; setSwitch('switch-mirror', state.overlayMirrored); applyOverlayTransforms(); }
+function resetOverlayTransform(){
+  state.overlayTranslate = {x:0,y:0}; state.overlayRotate = 0; state.overlayScale = 1.0;
+  document.getElementById('slider-scale').value = 1.0; document.getElementById('val-scale').innerText = '100%';
+  document.getElementById('slider-rotate').value = 0; document.getElementById('val-rotate').innerText = '0°';
+  applyOverlayTransforms();
+}
+function toggleOverlayLock(){
+  state.overlayLocked = !state.overlayLocked;
+  document.getElementById('icon-lock').setAttribute('data-lucide', state.overlayLocked ? 'lock' : 'lock-open');
+  safeIcons();
+}
+function toggleOverlayControlsDrawer(){ document.getElementById('overlay-controls-drawer').classList.toggle('hidden'); }
+
+function wireOverlayGestures(){
+  const el = document.getElementById('pose-overlay-container');
+  const pointers = new Map();
+  let dragStart = null, pinchStart = null;
+
+  el.addEventListener('pointerdown', (e)=>{
+    if(state.overlayLocked) return;
+    el.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(pointers.size === 1){
+      dragStart = { x:e.clientX, y:e.clientY, ox: state.overlayTranslate.x, oy: state.overlayTranslate.y };
+    } else if(pointers.size === 2){
+      const pts = Array.from(pointers.values());
+      const dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+      pinchStart = { dist: Math.hypot(dx,dy), angle: Math.atan2(dy,dx)*180/Math.PI, scale: state.overlayScale, rotate: state.overlayRotate };
+    }
+  });
+  el.addEventListener('pointermove', (e)=>{
+    if(state.overlayLocked || !pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(pointers.size === 1 && dragStart){
+      state.overlayTranslate.x = dragStart.ox + (e.clientX - dragStart.x);
+      state.overlayTranslate.y = dragStart.oy + (e.clientY - dragStart.y);
+      applyOverlayTransforms();
+    } else if(pointers.size === 2 && pinchStart){
+      const pts = Array.from(pointers.values());
+      const dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+      const dist = Math.hypot(dx,dy);
+      const angle = Math.atan2(dy,dx)*180/Math.PI;
+      const newScale = Math.min(2.5, Math.max(0.3, pinchStart.scale * (dist / pinchStart.dist)));
+      const newRotate = Math.max(-60, Math.min(60, pinchStart.rotate + (angle - pinchStart.angle)));
+      state.overlayScale = newScale; state.overlayRotate = newRotate;
+      document.getElementById('slider-scale').value = newScale.toFixed(2);
+      document.getElementById('val-scale').innerText = Math.round(newScale*100)+'%';
+      document.getElementById('slider-rotate').value = newRotate.toFixed(0);
+      document.getElementById('val-rotate').innerText = Math.round(newRotate)+'°';
+      applyOverlayTransforms();
+    }
+  });
+  const endPointer = (e)=>{
+    pointers.delete(e.pointerId);
+    if(pointers.size < 2) pinchStart = null;
+    if(pointers.size < 1) dragStart = null;
+  };
+  el.addEventListener('pointerup', endPointer);
+  el.addEventListener('pointercancel', endPointer);
+}
+
+/* ================================================================
+   9. CAPTURE / TIMER / SAVE / SHARE
+   ================================================================ */
+function cycleTimer(){
+  const timers = [0,3,5,10];
+  const idx = timers.indexOf(state.timerDuration);
+  state.timerDuration = timers[(idx+1)%timers.length];
+  LS.set('pc_timer', state.timerDuration);
+  document.getElementById('timer-label').innerText = state.timerDuration===0?'Off':`${state.timerDuration}s`;
+}
+
+function triggerCaptureSequence(){
+  if(!state.mediaStream){ toast('Camera is not ready yet.', 'err'); return; }
+  if(state.timerDuration === 0){ executeHighResCapture(); return; }
+  const overlay = document.getElementById('countdown-overlay');
+  const text = document.getElementById('countdown-text');
+  overlay.classList.remove('hidden');
+  let remaining = state.timerDuration;
+  text.innerText = remaining;
+  const interval = setInterval(()=>{
+    remaining--;
+    if(remaining > 0){ text.innerText = remaining; }
+    else{
+      clearInterval(interval);
+      overlay.classList.add('hidden');
+      executeHighResCapture();
+    }
+  }, 1000);
+}
+
+function flashEffect(){
+  const f = document.getElementById('flash-overlay');
+  f.classList.remove('hidden');
+  setTimeout(()=>f.classList.add('hidden'), 120);
+}
+
+async function executeHighResCapture(){
+  try{
+    flashEffect();
+    let imageBlob = null;
+    if(state.imageCapture){
+      try{ imageBlob = await state.imageCapture.takePhoto(); }
+      catch(e){ console.warn('ImageCapture.takePhoto failed, falling back', e); }
+    }
+    if(!imageBlob) imageBlob = await captureFromCanvasFrame();
+
+    state.originalCapturedBlob = imageBlob;
+    state.capturedBlob = imageBlob;
+
+    const resultImg = document.getElementById('result-img');
+    resultImg.src = URL.createObjectURL(imageBlob);
+    document.getElementById('chk-include-overlay').checked = false;
+
+    showScreen('screen-result');
+  }catch(err){
+    console.error('Capture error', err);
+    toast('Photo capture failed. Please try again.', 'err');
+  }
+}
+
+function captureFromCanvasFrame(){
+  return new Promise((resolve, reject)=>{
+    const video = document.getElementById('webcam');
+    if(!video.videoWidth){ reject(new Error('Video not ready')); return; }
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if(state.facingMode === 'user'){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob=>{ blob ? resolve(blob) : reject(new Error('toBlob failed')); }, 'image/jpeg', state.jpegQuality);
+  });
+}
+
+async function toggleResultOverlayCombine(include){
+  if(!include){
+    state.capturedBlob = state.originalCapturedBlob;
+    document.getElementById('result-img').src = URL.createObjectURL(state.capturedBlob);
+    return;
+  }
+  document.getElementById('result-loading').classList.remove('hidden');
+  try{
+    const baseImg = new Image();
+    baseImg.src = URL.createObjectURL(state.originalCapturedBlob);
+    await baseImg.decode();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = baseImg.naturalWidth; canvas.height = baseImg.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(baseImg, 0, 0);
+
+    const pose = findPose(state.currentPoseId);
+    const poseImg = new Image();
+    poseImg.crossOrigin = 'anonymous';
+    poseImg.src = pose.image;
+    await poseImg.decode();
+
+    ctx.save();
+    ctx.globalAlpha = state.overlayOpacity;
+    const cx = canvas.width/2, cy = canvas.height/2;
+    ctx.translate(cx, cy);
+    ctx.rotate(state.overlayRotate * Math.PI/180);
+    ctx.scale(state.overlayScale, state.overlayScale);
+    if(state.overlayMirrored) ctx.scale(-1,1);
+    const fitScale = Math.min(canvas.width/poseImg.naturalWidth, canvas.height/poseImg.naturalHeight) * 0.92;
+    const w = poseImg.naturalWidth * fitScale, h = poseImg.naturalHeight * fitScale;
+    ctx.drawImage(poseImg, -w/2, -h/2, w, h);
+    ctx.restore();
+
+    canvas.toBlob(blob=>{
+      state.capturedBlob = blob;
+      document.getElementById('result-img').src = URL.createObjectURL(blob);
+      document.getElementById('result-loading').classList.add('hidden');
+    }, 'image/jpeg', state.jpegQuality);
+  }catch(e){
+    console.error('Overlay combine failed', e);
+    toast('Could not merge overlay into photo.', 'err');
+    document.getElementById('result-loading').classList.add('hidden');
+  }
+}
+
+function retakePhoto(){
+  openCameraWithPose();
+}
+
+async function saveOrShareCapturedPhoto(){
+  if(!state.capturedBlob){ toast('No photo to save.', 'err'); return; }
+  const filename = `posecam-${Date.now()}.jpg`;
+  const file = new File([state.capturedBlob], filename, { type:'image/jpeg' });
+
+  if(navigator.canShare && navigator.canShare({ files:[file] })){
+    try{
+      await navigator.share({ files:[file], title:'My Pose Photo', text:'Captured with PoseCam Pro' });
+      toast('Shared successfully', 'ok');
+      return;
+    }catch(err){
+      if(err.name === 'AbortError') return;
+      console.warn('Share failed, falling back to download', err);
+    }
+  }
+
+  const url = URL.createObjectURL(state.capturedBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if(isIOS){
+    toast("Saved. If it didn't go to Photos, long-press the downloaded image and choose 'Save Image'.", 'ok');
+  } else {
+    toast('Photo saved to your Downloads folder.', 'ok');
+  }
+}
+
+/* ================================================================
+   10. SETTINGS HANDLERS
+   ================================================================ */
+function updateResolutionSetting(v){ state.resolutionMode = v; LS.set('pc_res', v); toast('Resolution preference updated — applies next time you open the camera.', 'ok'); }
+function updateAspectSetting(v){ state.aspectMode = v; LS.set('pc_aspect', v); toast('Aspect ratio preference updated.', 'ok'); }
+function updateJpegQuality(v){ state.jpegQuality = parseFloat(v); LS.set('pc_jpeg_q', state.jpegQuality); document.getElementById('val-jpeg-quality').innerText = Math.round(state.jpegQuality*100)+'%'; }
+function toggleAIDefaultSetting(){ state.aiDefault = !state.aiDefault; LS.set('pc_ai_default', state.aiDefault); setSwitch('switch-ai-default', state.aiDefault); }
+
+function confirmResetApp(){
+  if(!confirm('This will delete favorites, recents, settings, and ALL custom uploaded pose images from this browser. Continue?')) return;
+  localStorage.clear();
+  idbOpen().then(db=>{
+    const tx = db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear();
+  }).finally(()=>{ toast('App data reset. Reloading…','ok'); setTimeout(()=>location.reload(), 800); });
+}
+
+async function triggerNativeInstall(){
+  if(!state.deferredInstallPrompt){ toast('Install prompt not available — use your browser menu instead.', 'err'); return; }
+  state.deferredInstallPrompt.prompt();
+  await state.deferredInstallPrompt.userChoice;
+  state.deferredInstallPrompt = null;
+  document.getElementById('btn-install-native').classList.add('hidden');
+}
+
+/* ================================================================
+   11. AI POSE ASSISTANT (MediaPipe) — reference comparison
+   ================================================================ */
+function initAIPoseDetector(){
+  if(typeof Pose === 'undefined'){ console.warn('MediaPipe Pose not available'); return; }
+  try{
+    state.poseDetector = new Pose({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}` });
+    state.poseDetector.setOptions({ modelComplexity:1, smoothLandmarks:true, enableSegmentation:false, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+    state.poseDetector.onResults(onAIPoseResults);
+  }catch(e){ console.warn('AI init error', e); }
+}
+
+async function toggleAIPoseAssistant(){
+  state.aiEnabled = !state.aiEnabled;
+  setSwitch('switch-ai', state.aiEnabled);
+  const pill = document.getElementById('ai-feedback-pill');
+  const canvas = document.getElementById('ai-canvas');
+  if(state.aiEnabled){
+    if(typeof Pose === 'undefined'){ toast('AI library unavailable (offline on first load?).', 'err'); state.aiEnabled=false; setSwitch('switch-ai', false); return; }
+    pill.classList.remove('hidden');
+    await getReferenceLandmarks(state.currentPoseId);
+    processAIFrames();
+  } else {
+    pill.classList.add('hidden');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+  }
+}
+
+function getReferenceLandmarks(poseId){
+  if(state.refLandmarkCache.has(poseId)) return Promise.resolve(state.refLandmarkCache.get(poseId));
+  return new Promise((resolve)=>{
+    const pose = findPose(poseId);
+    if(!pose || typeof Pose === 'undefined'){ resolve(null); return; }
+    const refDetector = new Pose({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}` });
+    refDetector.setOptions({ modelComplexity:1, smoothLandmarks:false, enableSegmentation:false, minDetectionConfidence:0.4, minTrackingConfidence:0.4 });
+    refDetector.onResults((results)=>{
+      const lm = results.poseLandmarks || null;
+      state.refLandmarkCache.set(poseId, lm);
+      resolve(lm);
+    });
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = async ()=>{ try{ await refDetector.send({image:img}); }catch(e){ resolve(null); } };
+    img.onerror = ()=> resolve(null);
+    img.src = pose.image;
+  });
+}
+
+async function processAIFrames(){
+  if(!state.aiEnabled || !state.mediaStream) { state.aiRunning = false; return; }
+  state.aiRunning = true;
+  const video = document.getElementById('webcam');
+  if(video.readyState >= 2 && state.poseDetector){
+    try{ await state.poseDetector.send({ image: video }); }catch(e){ /* transient */ }
+  }
+  if(state.aiEnabled) requestAnimationFrame(processAIFrames);
+  else state.aiRunning = false;
+}
+
+// Normalize landmarks relative to torso center + shoulder-width scale, ignoring visibility<0.5
+function normalizeLandmarks(lm){
+  if(!lm) return null;
+  const ls = lm[11], rs = lm[12], lh = lm[23], rh = lm[24];
+  if(!ls || !rs || !lh || !rh) return null;
+  const cx = (ls.x+rs.x+lh.x+rh.x)/4, cy = (ls.y+rs.y+lh.y+rh.y)/4;
+  const scale = Math.hypot(ls.x-rs.x, ls.y-rs.y) || 0.2;
+  return lm.map(p => p ? { x:(p.x-cx)/scale, y:(p.y-cy)/scale, v:p.visibility } : null);
+}
+
+const JOINT_NAMES = { 11:'left shoulder',12:'right shoulder',13:'left elbow',14:'right elbow',15:'left hand',16:'right hand',23:'left hip',24:'right hip',25:'left knee',26:'right knee' };
+
+function onAIPoseResults(results){
+  if(!state.aiEnabled) return;
+  const canvas = document.getElementById('ai-canvas');
+  const video = document.getElementById('webcam');
+  canvas.width = video.videoWidth || 640; canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(state.facingMode === 'user'){ ctx.save(); ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+
+  if(!results.poseLandmarks){
+    if(state.facingMode==='user') ctx.restore();
+    updateAIFeedback('Step into frame so your full body is visible', null);
+    return;
+  }
+
+  ctx.fillStyle = '#818cf8';
+  const CONNECTIONS = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+  ctx.strokeStyle = '#818cf8aa'; ctx.lineWidth = 3;
+  CONNECTIONS.forEach(([a,b])=>{
+    const pa = results.poseLandmarks[a], pb = results.poseLandmarks[b];
+    if(pa && pb && pa.visibility>0.4 && pb.visibility>0.4){
+      ctx.beginPath(); ctx.moveTo(pa.x*canvas.width, pa.y*canvas.height); ctx.lineTo(pb.x*canvas.width, pb.y*canvas.height); ctx.stroke();
+    }
+  });
+  results.poseLandmarks.forEach(lm=>{
+    if(lm.visibility>0.4){ ctx.beginPath(); ctx.arc(lm.x*canvas.width, lm.y*canvas.height, 4, 0, 2*Math.PI); ctx.fill(); }
+  });
+  if(state.facingMode==='user') ctx.restore();
+
+  const userNorm = normalizeLandmarks(results.poseLandmarks);
+  const refRaw = state.refLandmarkCache.get(state.currentPoseId);
+  const refNorm = refRaw ? normalizeLandmarks(refRaw) : null;
+
+  if(!refNorm){
+    // Fallback heuristic framing guidance if no reference landmarks available
+    const nose = results.poseLandmarks[0];
+    if(nose){
+      if(nose.x < 0.3) updateAIFeedback('Move right to center yourself', null);
+      else if(nose.x > 0.7) updateAIFeedback('Move left to center yourself', null);
+      else updateAIFeedback('Body detected — positioning looks centered', null);
+    }
+    return;
+  }
+
+  // compare joints, find largest deviation
+  let worstJoint = null, worstDist = 0, totalDist = 0, count = 0;
+  Object.keys(JOINT_NAMES).forEach(k=>{
+    const i = parseInt(k,10);
+    const u = userNorm[i], r = refNorm[i];
+    if(u && r && u.v>0.4){
+      const dx = u.x-r.x, dy = u.y-r.y;
+      const d = Math.hypot(dx,dy);
+      totalDist += d; count++;
+      if(d > worstDist){ worstDist = d; worstJoint = { i, dx, dy, name: JOINT_NAMES[i] }; }
+    }
+  });
+
+  if(!count){ updateAIFeedback('Analyzing pose…', null); return; }
+
+  const avgDist = totalDist/count;
+  const matchPct = Math.max(0, Math.min(100, Math.round((1 - avgDist/1.6) * 100)));
+
+  if(matchPct >= 88){
+    updateAIFeedback('Pose matched ✓', matchPct);
+  } else if(worstJoint){
+    const mirrorFlip = state.facingMode === 'user' ? -1 : 1;
+    const horiz = (worstJoint.dx * mirrorFlip) > 0.12 ? `move your ${worstJoint.name} left` : (worstJoint.dx * mirrorFlip) < -0.12 ? `move your ${worstJoint.name} right` : null;
+    const vert = worstJoint.dy > 0.12 ? `raise your ${worstJoint.name}` : worstJoint.dy < -0.12 ? `lower your ${worstJoint.name}` : null;
+    const msg = horiz && vert ? `Try to ${horiz} and ${vert}` : (horiz || vert || 'Adjust your posture to match the reference');
+    updateAIFeedback(msg.charAt(0).toUpperCase()+msg.slice(1), matchPct);
+  } else {
+    updateAIFeedback('Fine-tuning alignment…', matchPct);
+  }
+}
+
+function updateAIFeedback(msg, score){
+  document.getElementById('ai-feedback-text').innerText = msg;
+  const scoreEl = document.getElementById('ai-match-score');
+  scoreEl.innerText = (score!==null && score!==undefined) ? `${score}%` : '';
+}
 </script>
 </body>
 </html>
