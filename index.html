@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pose Camera App</title>
+    
+    <!-- PWA Settings for Mobile -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PoseCam">
+    
+    <!-- Web Manifest Inline -->
+    <link rel="manifest" href="data:application/json,{
+        &quot;name&quot;: &quot;Pose Camera App&quot;,
+        &quot;short_name&quot;: &quot;PoseCam&quot;,
+        &quot;start_url&quot;: &quot;.&quot;,
+        &quot;display&quot;: &quot;standalone&quot;,
+        &quot;background_color&quot;: &quot;#000000&quot;,
+        &quot;theme_color&quot;: &quot;#000000&quot;
+    }">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Camera Viewport Area */
+        #camera-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+        }
+
+        /* Live Video Feed (100% result view) */
+        video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        /* Semi-transparent Overlay Canvas (40% opacity pose guideline) */
+        #pose-canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.4; /* 40% visible pose, 100% visible camera under it */
+        }
+
+        /* Top Controls: Install Button & Switch Camera */
+        .top-bar {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 10;
+        }
+
+        .btn-icon {
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 10px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Bottom Controls Area */
+        .bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-bottom: 30px;
+            z-index: 10;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+        }
+
+        /* Pose Selector Carousel */
+        .pose-selector {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            width: 100%;
+            padding: 10px 20px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .pose-selector::-webkit-scrollbar {
+            display: none;
+        }
+
+        .pose-card {
+            min-width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .pose-card.active {
+            border-color: #007aff;
+            background: rgba(0, 122, 255, 0.3);
+        }
+
+        /* Shutter Button */
+        .shutter-btn {
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
+            background-color: #fff;
+            border: 5px solid rgba(255, 255, 255, 0.5);
+            margin-top: 15px;
+            cursor: pointer;
+            outline: none;
+            transition: transform 0.1s ease;
+        }
+
+        .shutter-btn:active {
+            transform: scale(0.9);
+        }
+
+        /* Hidden Canvas for Capturing Full Resolution Photo */
+        #capture-canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="camera-container">
+        <!-- Live Camera Stream -->
+        <video id="video" autoplay playsinline muted></video>
+        
+        <!-- Pose Overlay Layer -->
+        <canvas id="pose-canvas"></canvas>
+
+        <!-- Top Controls -->
+        <div class="top-bar">
+            <button class="btn-icon" id="install-btn" style="display: none;">Add to Home Screen</button>
+            <button class="btn-icon" id="flip-btn">Flip Camera</button>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="bottom-bar">
+            <!-- Pose Categories / Selection -->
+            <div class="pose-selector" id="pose-selector">
+                <div class="pose-card active" onclick="selectPose(0)">Pose 1</div>
+                <div class="pose-card" onclick="selectPose(1)">Pose 2</div>
+                <div class="pose-card" onclick="selectPose(2)">Pose 3</div>
+                <div class="pose-card" onclick="selectPose(3)">Pose 4</div>
+            </div>
+
+            <!-- Shutter Button -->
+            <button class="shutter-btn" id="shutter-btn"></button>
+        </div>
+    </div>
+
+    <!-- Hidden element for full resolution picture capture -->
+    <canvas id="capture-canvas"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const poseCanvas = document.getElementById('pose-canvas');
+        const ctx = poseCanvas.getContext('2d');
+        const shutterBtn = document.getElementById('shutter-btn');
+        const flipBtn = document.getElementById('flip-btn');
+        const installBtn = document.getElementById('install-btn');
+
+        let currentStream = null;
+        let facingMode = 'environment'; // 'user' for front camera, 'environment' for back
+        let currentPoseIndex = 0;
+        let deferredPrompt = null;
+
+        // Vector Pose Guidelines (Drawn dynamically)
+        const poses = [
+            // Pose 1: Centered Portrait Outline
+            (ctx, width, height) => {
+                ctx.strokeStyle = '#00FF00';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                // Head outline
+                ctx.arc(width / 2, height * 0.35, width * 0.18, 0, Math.PI * 2);
+                // Shoulders
+                ctx.moveTo(width / 2 - width * 0.3, height * 0.7);
+                ctx.quadraticCurveTo(width / 2, height * 0.5, width / 2 + width * 0.3, height * 0.7);
+                ctx.stroke();
+            },
+            // Pose 2: Side Profile Outline
+            (ctx, width, height) => {
+                ctx.strokeStyle = '#FF0055';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                // Head
+                ctx.arc(width * 0.4, height * 0.35, width * 0.18, 0, Math.PI * 2);
+                // Body line
+                ctx.moveTo(width * 0.3, height * 0.8);
+                ctx.lineTo(width * 0.4, height * 0.5);
+                ctx.lineTo(width * 0.6, height * 0.8);
+                ctx.stroke();
+            },
+            // Pose 3: Full Body Standing
+            (ctx, width, height) => {
+                ctx.strokeStyle = '#00E5FF';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                // Head
+                ctx.arc(width / 2, height * 0.2, width * 0.1, 0, Math.PI * 2);
+                // Torso
+                ctx.moveTo(width / 2, height * 0.3);
+                ctx.lineTo(width / 2, height * 0.6);
+                // Legs
+                ctx.lineTo(width * 0.35, height * 0.9);
+                ctx.moveTo(width / 2, height * 0.6);
+                ctx.lineTo(width * 0.65, height * 0.9);
+                // Arms
+                ctx.moveTo(width * 0.3, height * 0.4);
+                ctx.lineTo(width * 0.7, height * 0.4);
+                ctx.stroke();
+            },
+            // Pose 4: Rule of Thirds Intersection
+            (ctx, width, height) => {
+                ctx.strokeStyle = '#FFFF00';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                // Grid lines
+                ctx.moveTo(width / 3, 0); ctx.lineTo(width / 3, height);
+                ctx.moveTo((width / 3) * 2, 0); ctx.lineTo((width / 3) * 2, height);
+                ctx.moveTo(0, height / 3); ctx.lineTo(width, height / 3);
+                ctx.moveTo(0, (height / 3) * 2); ctx.lineTo(width, (height / 3) * 2);
+                ctx.stroke();
+            }
+        ];
+
+        // Initialize Camera
+        async function startCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            };
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                video.onloadedmetadata = () => {
+                    resizeCanvas();
+                    drawPose();
+                };
+            } catch (err) {
+                alert('Camera access denied or unavailable: ' + err.message);
+            }
+        }
+
+        // Adjust Canvas Size to Match Screen Window
+        function resizeCanvas() {
+            poseCanvas.width = poseCanvas.clientWidth;
+            poseCanvas.height = poseCanvas.clientHeight;
+            drawPose();
+        }
+
+        // Render selected overlay pose
+        function drawPose() {
+            ctx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+            if (poses[currentPoseIndex]) {
+                poses[currentPoseIndex](ctx, poseCanvas.width, poseCanvas.height);
+            }
+        }
+
+        // Handle Pose Selection
+        function selectPose(index) {
+            currentPoseIndex = index;
+            document.querySelectorAll('.pose-card').forEach((card, idx) => {
+                card.classList.toggle('active', idx === index);
+            });
+            drawPose();
+        }
+
+        // Flip Camera (Front/Back)
+        flipBtn.addEventListener('click', () => {
+            facingMode = (facingMode === 'user') ? 'environment' : 'user';
+            startCamera();
+        });
+
+        // Capture Photo (Full Quality without overlay)
+        shutterBtn.addEventListener('click', () => {
+            const captureCanvas = document.getElementById('capture-canvas');
+            const captureCtx = captureCanvas.getContext('2d');
+
+            // Set capture canvas to match full video resolution
+            captureCanvas.width = video.videoWidth;
+            captureCanvas.height = video.videoHeight;
+
+            // Draw current video frame to capture canvas
+            captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+
+            // Export to downloadable image
+            const imageUrl = captureCanvas.toDataURL('image/jpeg', 1.0);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = imageUrl;
+            downloadLink.download = `photo_${Date.now()}.jpg`;
+            downloadLink.click();
+        });
+
+        // Handle Add to Home Screen (PWA Install Prompt)
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', startCamera);
+    </script>
+</body>
+</html>
