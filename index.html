@@ -1,375 +1,1033 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Pose Camera App</title>
-    
-    <!-- PWA Settings for Mobile -->
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="PoseCam">
-    
-    <!-- Web Manifest Inline -->
-    <link rel="manifest" href="data:application/json,{
-        &quot;name&quot;: &quot;Pose Camera App&quot;,
-        &quot;short_name&quot;: &quot;PoseCam&quot;,
-        &quot;start_url&quot;: &quot;.&quot;,
-        &quot;display&quot;: &quot;standalone&quot;,
-        &quot;background_color&quot;: &quot;#000000&quot;,
-        &quot;theme_color&quot;: &quot;#000000&quot;
-    }">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Pose Cam - Perfect Camera Overlay & AI Guide</title>
 
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
-        }
+  <!-- PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pose Cam">
+  <meta name="theme-color" content="#09090b">
 
-        body {
-            background-color: #000;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-            display: flex;
-            flex-direction: column;
-        }
+  <!-- Data URI Manifest for Single-File PWA -->
+  <link rel="manifest" href="data:application/manifest+json;utf8,%7B%22name%22%3A%22Pose%20Cam%22%2C%22short_name%22%3A%22PoseCam%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2309090b%22%2C%22theme_color%22%3A%22%2309090b%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2520viewBox%253D%25220%25200%2520512%2520512%2522%253E%253Crect%2520width%253D%2522512%2520512%2522%2520fill%253D%2522%252309090b%2522%252F%253E%253Ccircle%2520cx%253D%2522256%2520256%2522%2520r%253D%2522180%2522%2520fill%253D%2522none%2522%2520stroke%253D%2522%25236366f1%2522%2520stroke-width%253D%252232%2522%252F%253E%253Ccircle%2520cx%253D%2522256%2520256%2522%2520r%253D%252280%2522%2520fill%253D%2522%25236366f1%2522%2520%252F%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
 
-        /* Camera Viewport Area */
-        #camera-container {
-            position: relative;
-            flex: 1;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #111;
-        }
+  <!-- Icons -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%2309090b'/><circle cx='256' cy='256' r='180' fill='none' stroke='%236366f1' stroke-width='32'/><circle cx='256' cy='256' r='80' fill='%236366f1'/></svg>">
 
-        /* Live Video Feed (100% result view) */
-        video {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1;
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eepfef',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
         }
+      }
+    }
+  </script>
 
-        /* Semi-transparent Overlay Canvas (40% opacity pose guideline) */
-        #pose-canvas {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-            pointer-events: none;
-            opacity: 0.4; /* 40% visible pose, 100% visible camera under it */
-        }
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-        /* Top Controls: Install Button & Switch Camera */
-        .top-bar {
-            position: absolute;
-            top: 20px;
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 20px;
-            z-index: 10;
-        }
+  <!-- MediaPipe Pose Dependencies for Client-Side AI Assistance -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
-        .btn-icon {
-            background: rgba(0, 0, 0, 0.5);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            padding: 10px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-        }
+  <style>
+    /* Safe Area Insets for iOS Notch / Dynamic Island */
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: manipulation;
+    }
 
-        /* Bottom Controls Area */
-        .bottom-bar {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-bottom: 30px;
-            z-index: 10;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-        }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
 
-        /* Pose Selector Carousel */
-        .pose-selector {
-            display: flex;
-            gap: 15px;
-            overflow-x: auto;
-            width: 100%;
-            padding: 10px 20px;
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
-        }
+    /* Video mirroring when on front camera */
+    .mirror {
+      transform: scaleX(-1);
+    }
 
-        .pose-selector::-webkit-scrollbar {
-            display: none;
-        }
-
-        .pose-card {
-            min-width: 60px;
-            height: 60px;
-            border-radius: 12px;
-            border: 2px solid rgba(255, 255, 255, 0.4);
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-
-        .pose-card.active {
-            border-color: #007aff;
-            background: rgba(0, 122, 255, 0.3);
-        }
-
-        /* Shutter Button */
-        .shutter-btn {
-            width: 75px;
-            height: 75px;
-            border-radius: 50%;
-            background-color: #fff;
-            border: 5px solid rgba(255, 255, 255, 0.5);
-            margin-top: 15px;
-            cursor: pointer;
-            outline: none;
-            transition: transform 0.1s ease;
-        }
-
-        .shutter-btn:active {
-            transform: scale(0.9);
-        }
-
-        /* Hidden Canvas for Capturing Full Resolution Photo */
-        #capture-canvas {
-            display: none;
-        }
-    </style>
+    /* Hardware accelerated smooth overlays */
+    .overlay-element {
+      will-change: transform, opacity;
+      transform-origin: center center;
+    }
+  </style>
 </head>
-<body>
+<body class="bg-zinc-950 text-zinc-100 font-sans antialiased h-screen w-screen overflow-hidden select-none">
 
-    <div id="camera-container">
-        <!-- Live Camera Stream -->
-        <video id="video" autoplay playsinline muted></video>
+  <!-- GLOBAL APP CONTAINER -->
+  <div id="app" class="h-full w-full relative flex flex-col">
+
+    <!-- ========================================== -->
+    <!-- SCREEN 1: HOME SCREEN                      -->
+    <!-- ========================================== -->
+    <section id="screen-home" class="screen flex-1 flex flex-col justify-between p-6 overflow-y-auto">
+      <header class="flex items-center justify-between pt-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center text-indigo-400 border border-indigo-500/30">
+            <i data-lucide="camera" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold tracking-wide">Pose Cam</h1>
+            <p class="text-xs text-zinc-400">Match positions. Perfect shots.</p>
+          </div>
+        </div>
+        <button onclick="switchScreen('screen-settings')" class="p-2.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 active:scale-95 transition">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+        </button>
+      </header>
+
+      <main class="my-auto py-8 flex flex-col items-center text-center">
+        <!-- Hero Display Card -->
+        <div class="relative w-full max-w-sm aspect-[3/4] rounded-3xl overflow-hidden bg-zinc-900 border border-zinc-800 shadow-2xl mb-8 group cursor-pointer" onclick="openCameraWithPose(currentPoseId)">
+          <img id="home-selected-preview" src="poses/pose1.jpg" onerror="handleImageError(this)" class="w-full h-full object-cover opacity-80 group-hover:scale-105 transition duration-500" alt="Current Pose">
+          <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent"></div>
+          <div class="absolute bottom-6 left-6 right-6 text-left">
+            <span class="px-2.5 py-1 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-medium rounded-full mb-2 inline-block">Selected Reference</span>
+            <h2 id="home-selected-title" class="text-xl font-semibold text-white">Pose #1</h2>
+            <p id="home-selected-category" class="text-xs text-zinc-400">Standing Solo</p>
+          </div>
+          <div class="absolute top-4 right-4 w-12 h-12 rounded-full bg-indigo-600/90 text-white flex items-center justify-center shadow-lg backdrop-blur-md">
+            <i data-lucide="camera" class="w-6 h-6"></i>
+          </div>
+        </div>
+
+        <div class="w-full max-w-sm space-y-3">
+          <button onclick="openCameraWithPose(currentPoseId)" class="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition">
+            <i data-lucide="aperture" class="w-5 h-5"></i> Start Camera Overlay
+          </button>
+          <button onclick="switchScreen('screen-library')" class="w-full py-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-200 font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition hover:bg-zinc-800">
+            <i data-lucide="grid" class="w-5 h-5"></i> Browse Reference Library
+          </button>
+        </div>
+      </main>
+
+      <!-- Quick Recent / Favorites Row -->
+      <footer class="space-y-3 pb-2">
+        <div class="flex items-center justify-between text-xs text-zinc-400 px-1">
+          <span>Quick Access</span>
+          <button onclick="switchScreen('screen-library')" class="text-indigo-400 hover:underline">View All</button>
+        </div>
+        <div id="home-quick-bar" class="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+          <!-- Populated dynamically JS -->
+        </div>
+      </footer>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 2: CAMERA SCREEN (FULLSCREEN)      -->
+    <!-- ========================================== -->
+    <section id="screen-camera" class="screen hidden absolute inset-0 bg-black z-40 flex flex-col">
+      <!-- Live Video Canvas & Overlay Area -->
+      <div id="camera-viewport" class="relative flex-1 w-full h-full overflow-hidden bg-black flex items-center justify-center">
         
-        <!-- Pose Overlay Layer -->
-        <canvas id="pose-canvas"></canvas>
-
-        <!-- Top Controls -->
-        <div class="top-bar">
-            <button class="btn-icon" id="install-btn" style="display: none;">Add to Home Screen</button>
-            <button class="btn-icon" id="flip-btn">Flip Camera</button>
+        <video id="webcam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
+        
+        <!-- Pose Overlay -->
+        <div id="pose-overlay-container" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <img id="pose-overlay-img" src="poses/pose1.jpg" onerror="handleImageError(this)" class="overlay-element max-w-full max-h-full object-contain transition-opacity duration-75" style="opacity: 0.4;">
         </div>
 
-        <!-- Bottom Controls -->
-        <div class="bottom-bar">
-            <!-- Pose Categories / Selection -->
-            <div class="pose-selector" id="pose-selector">
-                <div class="pose-card active" onclick="selectPose(0)">Pose 1</div>
-                <div class="pose-card" onclick="selectPose(1)">Pose 2</div>
-                <div class="pose-card" onclick="selectPose(2)">Pose 3</div>
-                <div class="pose-card" onclick="selectPose(3)">Pose 4</div>
+        <!-- AI Canvas Landmark Drawing -->
+        <canvas id="ai-canvas" class="absolute inset-0 w-full h-full object-cover pointer-events-none z-20"></canvas>
+
+        <!-- Countdown Banner Overlay -->
+        <div id="countdown-overlay" class="hidden absolute inset-0 z-30 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <span id="countdown-text" class="text-9xl font-black text-white drop-shadow-2xl animate-ping">3</span>
+        </div>
+
+        <!-- Dynamic AI Guidance Notification Pill -->
+        <div id="ai-feedback-pill" class="hidden absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full bg-zinc-900/80 backdrop-blur-md border border-zinc-700/50 text-xs font-semibold text-indigo-300 flex items-center gap-2 shadow-xl">
+          <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+          <span id="ai-feedback-text">Analyzing Pose...</span>
+        </div>
+
+        <!-- Top Camera Header Overlay Controls -->
+        <div class="absolute top-0 inset-x-0 p-4 z-30 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/30 to-transparent">
+          <button onclick="closeCameraScreen()" class="p-3 rounded-full bg-zinc-900/60 backdrop-blur-md border border-white/10 text-white active:scale-90 transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+
+          <div class="flex items-center gap-2">
+            <!-- Timer Selector -->
+            <button id="btn-timer" onclick="cycleTimer()" class="px-3 py-2 rounded-full bg-zinc-900/60 backdrop-blur-md border border-white/10 text-white text-xs font-medium flex items-center gap-1.5 active:scale-95 transition">
+              <i data-lucide="timer" class="w-4 h-4"></i>
+              <span id="timer-label">Off</span>
+            </button>
+
+            <!-- Toggle Overlay Lock/Interactions -->
+            <button id="btn-lock-overlay" onclick="toggleOverlayLock()" class="p-3 rounded-full bg-zinc-900/60 backdrop-blur-md border border-white/10 text-white active:scale-95 transition">
+              <i data-lucide="lock" id="icon-lock" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Toggle Mirror Pose Overlay -->
+            <button onclick="toggleOverlayMirror()" class="p-3 rounded-full bg-zinc-900/60 backdrop-blur-md border border-white/10 text-white active:scale-95 transition">
+              <i data-lucide="flip-horizontal" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Settings Quick Drawer Toggle -->
+            <button onclick="toggleOverlayControlsDrawer()" class="p-3 rounded-full bg-zinc-900/60 backdrop-blur-md border border-white/10 text-white active:scale-95 transition">
+              <i data-lucide="sliders" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Expandable Control Panel Drawer -->
+        <div id="overlay-controls-drawer" class="hidden absolute top-20 right-4 z-30 w-64 p-4 rounded-2xl bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 text-xs space-y-4 shadow-2xl">
+          <div class="flex items-center justify-between border-b border-zinc-800 pb-2">
+            <span class="font-bold text-zinc-200">Overlay Controls</span>
+            <button onclick="toggleOverlayControlsDrawer()" class="text-zinc-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-zinc-400 mb-1">
+              <span>Opacity</span>
+              <span id="val-opacity">40%</span>
             </div>
+            <input type="range" id="slider-opacity" min="0.1" max="0.7" step="0.05" value="0.4" oninput="updateOverlayOpacity(this.value)" class="w-full accent-indigo-500 bg-zinc-800 rounded-lg cursor-pointer">
+          </div>
 
-            <!-- Shutter Button -->
-            <button class="shutter-btn" id="shutter-btn"></button>
+          <div>
+            <div class="flex justify-between text-zinc-400 mb-1">
+              <span>Size</span>
+              <span id="val-scale">100%</span>
+            </div>
+            <input type="range" id="slider-scale" min="0.5" max="1.5" step="0.05" value="1.0" oninput="updateOverlayScale(this.value)" class="w-full accent-indigo-500 bg-zinc-800 rounded-lg cursor-pointer">
+          </div>
+
+          <div class="pt-2 border-t border-zinc-800 flex items-center justify-between">
+            <span class="text-zinc-300">AI Pose Assistant</span>
+            <input type="checkbox" id="toggle-ai" onchange="toggleAIPoseAssistant(this.checked)" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer">
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- Hidden element for full resolution picture capture -->
-    <canvas id="capture-canvas"></canvas>
+      <!-- Bottom Camera Navigation & Trigger Bar -->
+      <div class="p-6 bg-black flex flex-col gap-4 z-30">
+        <!-- Quick Reference Bar -->
+        <div class="flex items-center justify-between gap-4">
+          <button onclick="prevPose()" class="p-2 rounded-full bg-zinc-900 text-zinc-300 hover:text-white active:scale-95"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
+          
+          <button onclick="switchScreen('screen-library')" class="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 hover:border-indigo-500 transition max-w-[200px] truncate">
+            <i data-lucide="image" class="w-4 h-4 text-indigo-400 shrink-0"></i>
+            <span id="camera-current-pose-name" class="truncate">Pose #1</span>
+          </button>
 
-    <script>
-        const video = document.getElementById('video');
-        const poseCanvas = document.getElementById('pose-canvas');
-        const ctx = poseCanvas.getContext('2d');
-        const shutterBtn = document.getElementById('shutter-btn');
-        const flipBtn = document.getElementById('flip-btn');
-        const installBtn = document.getElementById('install-btn');
+          <button onclick="nextPose()" class="p-2 rounded-full bg-zinc-900 text-zinc-300 hover:text-white active:scale-95"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>
+        </div>
 
-        let currentStream = null;
-        let facingMode = 'environment'; // 'user' for front camera, 'environment' for back
-        let currentPoseIndex = 0;
-        let deferredPrompt = null;
+        <!-- Shutter Button Area -->
+        <div class="flex items-center justify-between pt-2">
+          <!-- Flip Camera -->
+          <button onclick="switchCameraFacing()" class="p-4 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-200 active:scale-90 transition">
+            <i data-lucide="refresh-cw" class="w-6 h-6"></i>
+          </button>
 
-        // Vector Pose Guidelines (Drawn dynamically)
-        const poses = [
-            // Pose 1: Centered Portrait Outline
-            (ctx, width, height) => {
-                ctx.strokeStyle = '#00FF00';
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                // Head outline
-                ctx.arc(width / 2, height * 0.35, width * 0.18, 0, Math.PI * 2);
-                // Shoulders
-                ctx.moveTo(width / 2 - width * 0.3, height * 0.7);
-                ctx.quadraticCurveTo(width / 2, height * 0.5, width / 2 + width * 0.3, height * 0.7);
-                ctx.stroke();
-            },
-            // Pose 2: Side Profile Outline
-            (ctx, width, height) => {
-                ctx.strokeStyle = '#FF0055';
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                // Head
-                ctx.arc(width * 0.4, height * 0.35, width * 0.18, 0, Math.PI * 2);
-                // Body line
-                ctx.moveTo(width * 0.3, height * 0.8);
-                ctx.lineTo(width * 0.4, height * 0.5);
-                ctx.lineTo(width * 0.6, height * 0.8);
-                ctx.stroke();
-            },
-            // Pose 3: Full Body Standing
-            (ctx, width, height) => {
-                ctx.strokeStyle = '#00E5FF';
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                // Head
-                ctx.arc(width / 2, height * 0.2, width * 0.1, 0, Math.PI * 2);
-                // Torso
-                ctx.moveTo(width / 2, height * 0.3);
-                ctx.lineTo(width / 2, height * 0.6);
-                // Legs
-                ctx.lineTo(width * 0.35, height * 0.9);
-                ctx.moveTo(width / 2, height * 0.6);
-                ctx.lineTo(width * 0.65, height * 0.9);
-                // Arms
-                ctx.moveTo(width * 0.3, height * 0.4);
-                ctx.lineTo(width * 0.7, height * 0.4);
-                ctx.stroke();
-            },
-            // Pose 4: Rule of Thirds Intersection
-            (ctx, width, height) => {
-                ctx.strokeStyle = '#FFFF00';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                // Grid lines
-                ctx.moveTo(width / 3, 0); ctx.lineTo(width / 3, height);
-                ctx.moveTo((width / 3) * 2, 0); ctx.lineTo((width / 3) * 2, height);
-                ctx.moveTo(0, height / 3); ctx.lineTo(width, height / 3);
-                ctx.moveTo(0, (height / 3) * 2); ctx.lineTo(width, (height / 3) * 2);
-                ctx.stroke();
-            }
-        ];
+          <!-- Main Shutter Button -->
+          <button onclick="triggerCaptureSequence()" class="relative w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 active:scale-95 transition">
+            <div class="w-full h-full rounded-full bg-white active:bg-zinc-300 transition"></div>
+          </button>
 
-        // Initialize Camera
-        async function startCamera() {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
+          <!-- Favorite Toggle Button -->
+          <button id="btn-camera-fav" onclick="toggleFavoriteCurrentPose()" class="p-4 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-200 active:scale-90 transition">
+            <i data-lucide="heart" id="icon-camera-fav" class="w-6 h-6"></i>
+          </button>
+        </div>
+      </div>
+    </section>
 
-            const constraints = {
-                video: {
-                    facingMode: facingMode,
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                },
-                audio: false
-            };
+    <!-- ========================================== -->
+    <!-- SCREEN 3: POSE LIBRARY                     -->
+    <!-- ========================================== -->
+    <section id="screen-library" class="screen hidden flex-1 flex flex-col bg-zinc-950 p-4 overflow-hidden">
+      <!-- Header -->
+      <header class="flex items-center justify-between pb-4 border-b border-zinc-800">
+        <div class="flex items-center gap-3">
+          <button onclick="switchScreen('screen-home')" class="p-2 rounded-full bg-zinc-900 text-zinc-300">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+          </button>
+          <h2 class="text-lg font-bold">Pose Reference Library</h2>
+        </div>
+        <button onclick="selectRandomPose()" class="px-3 py-1.5 rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs font-semibold flex items-center gap-1.5 active:scale-95">
+          <i data-lucide="shuffle" class="w-3.5 h-3.5"></i> Random
+        </button>
+      </header>
 
-            try {
-                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = currentStream;
-                video.onloadedmetadata = () => {
-                    resizeCanvas();
-                    drawPose();
-                };
-            } catch (err) {
-                alert('Camera access denied or unavailable: ' + err.message);
-            }
+      <!-- Search & Filters -->
+      <div class="py-4 space-y-3">
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500"></i>
+          <input type="text" id="library-search" oninput="filterLibrary()" placeholder="Search poses or tags..." class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none" id="category-chips">
+          <!-- Populated dynamically JS -->
+        </div>
+      </div>
+
+      <!-- Pose Grid -->
+      <main class="flex-1 overflow-y-auto pr-1">
+        <div id="library-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <!-- Dynamically populated pose cards -->
+        </div>
+      </main>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 4: PHOTO RESULT REVIEW              -->
+    <!-- ========================================== -->
+    <section id="screen-result" class="screen hidden absolute inset-0 bg-zinc-950 z-50 flex flex-col p-4 overflow-y-auto">
+      <header class="flex items-center justify-between pb-4">
+        <h2 class="text-lg font-bold">Capture Review</h2>
+        <button onclick="retakePhoto()" class="p-2 rounded-full bg-zinc-900 text-zinc-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </header>
+
+      <main class="flex-1 flex flex-col items-center justify-center">
+        <div class="relative w-full max-w-md aspect-[3/4] rounded-2xl overflow-hidden bg-black border border-zinc-800 shadow-2xl">
+          <img id="result-img" src="" class="w-full h-full object-contain" alt="Captured Photo">
+        </div>
+
+        <div class="mt-4 flex items-center gap-3">
+          <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+            <input type="checkbox" id="chk-include-overlay" onchange="toggleResultOverlayCombine(this.checked)" class="accent-indigo-500 rounded">
+            Save with Overlay Reference
+          </label>
+        </div>
+      </main>
+
+      <footer class="pt-4 grid grid-cols-2 gap-3 max-w-md mx-auto w-full">
+        <button onclick="retakePhoto()" class="py-3.5 rounded-xl bg-zinc-900 border border-zinc-800 font-semibold text-zinc-300 flex items-center justify-center gap-2 active:scale-95 transition">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Retake
+        </button>
+        <button onclick="saveOrShareCapturedPhoto()" class="py-3.5 rounded-xl bg-indigo-600 font-semibold text-white flex items-center justify-center gap-2 active:scale-95 transition shadow-lg shadow-indigo-600/30">
+          <i data-lucide="download" class="w-4 h-4"></i> Save / Share
+        </button>
+      </footer>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 5: SETTINGS & INSTALL HELP         -->
+    <!-- ========================================== -->
+    <section id="screen-settings" class="screen hidden flex-1 flex flex-col bg-zinc-950 p-4 overflow-y-auto">
+      <header class="flex items-center gap-3 pb-4 border-b border-zinc-800 mb-4">
+        <button onclick="switchScreen('screen-home')" class="p-2 rounded-full bg-zinc-900 text-zinc-300">
+          <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </button>
+        <h2 class="text-lg font-bold">Settings & Info</h2>
+      </header>
+
+      <main class="space-y-6 max-w-md mx-auto w-full">
+        <!-- Install Guide Box -->
+        <div class="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-800/40 space-y-3">
+          <div class="flex items-center gap-2 text-indigo-300 font-semibold text-sm">
+            <i data-lucide="smartphone" class="w-4 h-4"></i>
+            <span>Install Web App</span>
+          </div>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            Install this application on your mobile device for full-screen operation and fast offline launch.
+          </p>
+          <div class="text-xs text-zinc-400 space-y-2 pt-1">
+            <p><strong class="text-zinc-200">iOS (Safari):</strong> Tap the Share icon <i data-lucide="share" class="w-3 h-3 inline"></i>, then select <span class="text-indigo-300 font-medium">"Add to Home Screen"</span>.</p>
+            <p><strong class="text-zinc-200">Android (Chrome):</strong> Tap Options <i data-lucide="more-vertical" class="w-3 h-3 inline"></i>, then select <span class="text-indigo-300 font-medium">"Install app"</span> or <span class="text-indigo-300 font-medium">"Add to Home Screen"</span>.</p>
+          </div>
+        </div>
+
+        <!-- Preferences -->
+        <div class="space-y-4">
+          <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-wider">Camera Preferences</h3>
+          
+          <div class="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm">High Resolution Capture</span>
+              <input type="checkbox" checked disabled class="accent-indigo-500 rounded">
+            </div>
+            <p class="text-xs text-zinc-500">Captures using maximum native sensor resolution available.</p>
+          </div>
+        </div>
+
+        <!-- Privacy & Security -->
+        <div class="space-y-4">
+          <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-wider">Privacy Guarantee</h3>
+          <div class="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2 text-xs text-zinc-400">
+            <div class="flex items-center gap-2 text-emerald-400 font-medium">
+              <i data-lucide="shield-check" class="w-4 h-4"></i>
+              <span>100% On-Device Local Processing</span>
+            </div>
+            <p>Your camera stream, photos, and body landmark data are never uploaded to any cloud server. Everything stays completely inside your web browser.</p>
+          </div>
+        </div>
+      </main>
+    </section>
+
+  </div>
+
+  <!-- JAVASCRIPT APPLICATION LOGIC -->
+  <script>
+    /* ==========================================================================
+       1. DATA CONFIGURATION & POSE DATABASE SYSTEM
+       ========================================================================== */
+    
+    // Total count of dynamic images hosted under /poses/poseX.jpg
+    const TOTAL_POSES = 100;
+    
+    // Dynamic Pose Registry Generator
+    const posesDatabase = Array.from({ length: TOTAL_POSES }, (_, index) => {
+      const id = index + 1;
+      const categories = ['Solo Standing', 'Sitting', 'Creative / Urban', 'Action', 'Portrait'];
+      const category = categories[id % categories.length];
+      return {
+        id: id,
+        title: `Pose #${id}`,
+        category: category,
+        image: `poses/pose${id}.jpg`,
+        tags: [category.toLowerCase(), `pose${id}`]
+      };
+    });
+
+    /* App State */
+    let currentPoseId = 1;
+    let selectedCategory = 'All';
+    let favorites = JSON.parse(localStorage.getItem('pose_favs') || '[]');
+    let recents = JSON.parse(localStorage.getItem('pose_recents') || '[1]');
+    
+    // Camera State
+    let mediaStream = null;
+    let imageCapture = null;
+    let facingMode = 'environment'; // 'user' or 'environment'
+    let timerDuration = 0; // 0, 3, 5, 10
+    let overlayLocked = false;
+    let overlayMirrored = false;
+    let overlayOpacity = 0.4;
+    let overlayScale = 1.0;
+    let capturedBlob = null;
+    let originalCapturedBlob = null;
+
+    // AI Pose State
+    let poseDetector = null;
+    let aiEnabled = false;
+
+    /* ==========================================================================
+       2. INITIALIZATION & NAVIGATION LOGIC
+       ========================================================================== */
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      renderCategoryChips();
+      renderLibraryGrid();
+      renderQuickBar();
+      updateSelectedPoseUI();
+      initAIPoseDetector();
+    });
+
+    function switchScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
+      const target = document.getElementById(screenId);
+      if (target) target.classList.remove('hidden');
+
+      if (screenId !== 'screen-camera') {
+        stopCamera();
+      }
+      lucide.createIcons();
+    }
+
+    /* Fallback image handling if local file poses/poseX.jpg doesn't exist yet */
+    function handleImageError(img) {
+      // SVG Placeholder fallback
+      const placeholderSVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="%2318181b"/><circle cx="200" cy="180" r="50" fill="%233f3f46"/><path d="M120 380 C120 280, 280 280, 280 380 L280 520 L120 520 Z" fill="%233f3f46"/><text x="50%" y="92%" dominant-baseline="middle" text-anchor="middle" fill="%2371717a" font-family="sans-serif" font-size="14">Missing Reference Image</text></svg>`;
+      img.onerror = null;
+      img.src = placeholderSVG;
+    }
+
+    /* ==========================================================================
+       3. POSE LIBRARY & FAVORITES MANAGEMENT
+       ========================================================================== */
+
+    function renderCategoryChips() {
+      const categories = ['All', 'Favorites', 'Solo Standing', 'Sitting', 'Creative / Urban', 'Action', 'Portrait'];
+      const container = document.getElementById('category-chips');
+      container.innerHTML = categories.map(cat => `
+        <button onclick="selectCategory('${cat}')" class="px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${selectedCategory === cat ? 'bg-indigo-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'}">
+          ${cat}
+        </button>
+      `).join('');
+    }
+
+    function selectCategory(cat) {
+      selectedCategory = cat;
+      renderCategoryChips();
+      renderLibraryGrid();
+    }
+
+    function renderLibraryGrid() {
+      const searchVal = document.getElementById('library-search').value.toLowerCase();
+      const container = document.getElementById('library-grid');
+
+      let filtered = posesDatabase.filter(pose => {
+        const matchesCategory = selectedCategory === 'All' ? true :
+                                selectedCategory === 'Favorites' ? favorites.includes(pose.id) :
+                                pose.category === selectedCategory;
+        const matchesSearch = pose.title.toLowerCase().includes(searchVal) || pose.category.toLowerCase().includes(searchVal);
+        return matchesCategory && matchesSearch;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-12 text-center text-zinc-500 text-sm">
+            <i data-lucide="image-off" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+            No reference poses found.
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = filtered.map(pose => `
+        <div onclick="selectPoseAndLaunch(${pose.id})" class="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800/80 cursor-pointer active:scale-95 transition duration-200">
+          <img src="${pose.image}" loading="lazy" onerror="handleImageError(this)" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="${pose.title}">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80"></div>
+          
+          <button onclick="event.stopPropagation(); toggleFavorite(${pose.id})" class="absolute top-2.5 right-2.5 p-2 rounded-full bg-black/40 backdrop-blur-md text-white">
+            <i data-lucide="heart" class="w-4 h-4 ${favorites.includes(pose.id) ? 'fill-indigo-500 text-indigo-500' : 'text-white'}"></i>
+          </button>
+
+          <div class="absolute bottom-3 left-3 right-3 text-left">
+            <p class="text-xs font-semibold text-white truncate">${pose.title}</p>
+            <p class="text-[10px] text-zinc-400 truncate">${pose.category}</p>
+          </div>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function filterLibrary() {
+      renderLibraryGrid();
+    }
+
+    function toggleFavorite(id) {
+      if (favorites.includes(id)) {
+        favorites = favorites.filter(item => item !== id);
+      } else {
+        favorites.push(id);
+      }
+      localStorage.setItem('pose_favs', JSON.stringify(favorites));
+      renderLibraryGrid();
+      updateSelectedPoseUI();
+    }
+
+    function toggleFavoriteCurrentPose() {
+      toggleFavorite(currentPoseId);
+    }
+
+    function renderQuickBar() {
+      const container = document.getElementById('home-quick-bar');
+      const recentPoses = recents.slice(0, 8).map(id => posesDatabase.find(p => p.id === id)).filter(Boolean);
+
+      container.innerHTML = recentPoses.map(pose => `
+        <div onclick="openCameraWithPose(${pose.id})" class="relative shrink-0 w-20 aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 cursor-pointer active:scale-95 transition">
+          <img src="${pose.image}" onerror="handleImageError(this)" class="w-full h-full object-cover" alt="${pose.title}">
+          <div class="absolute inset-0 bg-black/20"></div>
+          <span class="absolute bottom-1 left-1.5 text-[9px] font-bold text-white truncate max-w-[90%]">${pose.title}</span>
+        </div>
+      `).join('');
+    }
+
+    function selectPoseAndLaunch(id) {
+      setCurrentPose(id);
+      openCameraWithPose(id);
+    }
+
+    function selectRandomPose() {
+      const randomId = Math.floor(Math.random() * TOTAL_POSES) + 1;
+      selectPoseAndLaunch(randomId);
+    }
+
+    function setCurrentPose(id) {
+      currentPoseId = id;
+      
+      // Update recents
+      recents = [id, ...recents.filter(item => item !== id)];
+      localStorage.setItem('pose_recents', JSON.stringify(recents));
+
+      renderQuickBar();
+      updateSelectedPoseUI();
+    }
+
+    function updateSelectedPoseUI() {
+      const pose = posesDatabase.find(p => p.id === currentPoseId) || posesDatabase[0];
+      
+      // Home preview updates
+      document.getElementById('home-selected-preview').src = pose.image;
+      document.getElementById('home-selected-title').innerText = pose.title;
+      document.getElementById('home-selected-category').innerText = pose.category;
+
+      // Camera screen updates
+      document.getElementById('pose-overlay-img').src = pose.image;
+      document.getElementById('camera-current-pose-name').innerText = pose.title;
+
+      // Update camera fav icon state
+      const isFav = favorites.includes(currentPoseId);
+      const favIcon = document.getElementById('icon-camera-fav');
+      if (favIcon) {
+        favIcon.className = `w-6 h-6 ${isFav ? 'fill-indigo-500 text-indigo-500' : 'text-white'}`;
+      }
+    }
+
+    function prevPose() {
+      let nextId = currentPoseId - 1;
+      if (nextId < 1) nextId = TOTAL_POSES;
+      setCurrentPose(nextId);
+    }
+
+    function nextPose() {
+      let nextId = currentPoseId + 1;
+      if (nextId > TOTAL_POSES) nextId = 1;
+      setCurrentPose(nextId);
+    }
+
+    /* ==========================================================================
+       4. HIGH QUALITY CAMERA CORE & WEBCAM API
+       ========================================================================== */
+
+    async function openCameraWithPose(poseId) {
+      if (poseId) setCurrentPose(poseId);
+      switchScreen('screen-camera');
+      await startCamera();
+    }
+
+    async function startCamera() {
+      stopCamera(); // Clean existing streams
+
+      // Advanced constraints requesting max hardware capabilities
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 3840, min: 1280 },
+          height: { ideal: 2160, min: 720 },
+          frameRate: { ideal: 30 }
+        }
+      };
+
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        const videoTrack = mediaStream.getVideoTracks()[0];
+        
+        const videoEl = document.getElementById('webcam');
+        videoEl.srcObject = mediaStream;
+
+        // Apply visual mirroring to video feed if front camera
+        if (facingMode === 'user') {
+          videoEl.classList.add('mirror');
+        } else {
+          videoEl.classList.remove('mirror');
         }
 
-        // Adjust Canvas Size to Match Screen Window
-        function resizeCanvas() {
-            poseCanvas.width = poseCanvas.clientWidth;
-            poseCanvas.height = poseCanvas.clientHeight;
-            drawPose();
+        // Initialize ImageCapture API if available in browser
+        if ('ImageCapture' in window && videoTrack) {
+          imageCapture = new ImageCapture(videoTrack);
         }
 
-        // Render selected overlay pose
-        function drawPose() {
-            ctx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
-            if (poses[currentPoseIndex]) {
-                poses[currentPoseIndex](ctx, poseCanvas.width, poseCanvas.height);
-            }
+      } catch (err) {
+        console.error("Camera access error:", err);
+        alert("Unable to access camera. Please check permissions in browser settings.");
+        switchScreen('screen-home');
+      }
+    }
+
+    function stopCamera() {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+      imageCapture = null;
+    }
+
+    function closeCameraScreen() {
+      stopCamera();
+      switchScreen('screen-home');
+    }
+
+    async function switchCameraFacing() {
+      facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+      await startCamera();
+    }
+
+    /* ==========================================================================
+       5. CAPTURE, PROCESS & HIGH-RES CANVAS RENDERING
+       ========================================================================== */
+
+    function cycleTimer() {
+      const timers = [0, 3, 5, 10];
+      const idx = timers.indexOf(timerDuration);
+      timerDuration = timers[(idx + 1) % timers.length];
+      document.getElementById('timer-label').innerText = timerDuration === 0 ? 'Off' : `${timerDuration}s`;
+    }
+
+    function triggerCaptureSequence() {
+      if (timerDuration === 0) {
+        executeHighResCapture();
+      } else {
+        const overlay = document.getElementById('countdown-overlay');
+        const text = document.getElementById('countdown-text');
+        overlay.classList.remove('hidden');
+
+        let remaining = timerDuration;
+        text.innerText = remaining;
+
+        const interval = setInterval(() => {
+          remaining--;
+          if (remaining > 0) {
+            text.innerText = remaining;
+          } else {
+            clearInterval(interval);
+            overlay.classList.add('hidden');
+            executeHighResCapture();
+          }
+        }, 1000);
+      }
+    }
+
+    async function executeHighResCapture() {
+      try {
+        let imageBlob = null;
+
+        // Preferred Path: Native Sensor Frame Capture via ImageCapture API
+        if (imageCapture) {
+          try {
+            imageBlob = await imageCapture.takePhoto();
+          } catch (e) {
+            console.warn("ImageCapture takePhoto failed, falling back to full-res canvas draw", e);
+          }
         }
 
-        // Handle Pose Selection
-        function selectPose(index) {
-            currentPoseIndex = index;
-            document.querySelectorAll('.pose-card').forEach((card, idx) => {
-                card.classList.toggle('active', idx === index);
-            });
-            drawPose();
+        // Fallback Path: High-res Video Stream Frame Grab onto Canvas
+        if (!imageBlob) {
+          imageBlob = await captureFromCanvasFrame();
         }
 
-        // Flip Camera (Front/Back)
-        flipBtn.addEventListener('click', () => {
-            facingMode = (facingMode === 'user') ? 'environment' : 'user';
-            startCamera();
+        originalCapturedBlob = imageBlob;
+        capturedBlob = imageBlob;
+
+        // Render result in preview UI
+        const resultImg = document.getElementById('result-img');
+        resultImg.src = URL.createObjectURL(imageBlob);
+
+        document.getElementById('chk-include-overlay').checked = false;
+        switchScreen('screen-result');
+
+      } catch (err) {
+        console.error("Capture sequence error:", err);
+        alert("Failed to capture photograph. Please try again.");
+      }
+    }
+
+    function captureFromCanvasFrame() {
+      return new Promise((resolve) => {
+        const video = document.getElementById('webcam');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
+
+        const ctx = canvas.getContext('2d');
+
+        // Apply mirror transform if user facing camera
+        if (facingMode === 'user') {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, 'image/jpeg', 0.95);
+      });
+    }
+
+    /* Merge Captured Camera Photo with Selected Pose Reference Overlay */
+    async function toggleResultOverlayCombine(includeOverlay) {
+      if (!includeOverlay) {
+        capturedBlob = originalCapturedBlob;
+        document.getElementById('result-img').src = URL.createObjectURL(capturedBlob);
+        return;
+      }
+
+      // Draw combined image onto offscreen canvas
+      const baseImg = new Image();
+      baseImg.src = URL.createObjectURL(originalCapturedBlob);
+      await baseImg.decode();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = baseImg.naturalWidth;
+      canvas.height = baseImg.naturalHeight;
+      const ctx = canvas.getContext('2d');
+
+      // Draw original full-res photo
+      ctx.drawImage(baseImg, 0, 0);
+
+      // Overlay Pose Image
+      const poseImg = new Image();
+      poseImg.crossOrigin = 'anonymous';
+      poseImg.src = posesDatabase.find(p => p.id === currentPoseId).image;
+      
+      try {
+        await poseImg.decode();
+        ctx.globalAlpha = overlayOpacity;
+        
+        // Center-fit pose overlay over image
+        const scale = Math.min(canvas.width / poseImg.naturalWidth, canvas.height / poseImg.naturalHeight) * overlayScale;
+        const w = poseImg.naturalWidth * scale;
+        const h = poseImg.naturalHeight * scale;
+        const x = (canvas.width - w) / 2;
+        const y = (canvas.height - h) / 2;
+
+        if (overlayMirrored) {
+          ctx.save();
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(poseImg, x, y, w, h);
+          ctx.restore();
+        } else {
+          ctx.drawImage(poseImg, x, y, w, h);
+        }
+
+      } catch (e) {
+        console.warn("Overlay decode error for combined image", e);
+      }
+
+      canvas.toBlob((blob) => {
+        capturedBlob = blob;
+        document.getElementById('result-img').src = URL.createObjectURL(blob);
+      }, 'image/jpeg', 0.95);
+    }
+
+    function retakePhoto() {
+      openCameraWithPose();
+    }
+
+    /* ==========================================================================
+       6. MOBILE SAVING & WEB SHARE API
+       ========================================================================== */
+
+    async function saveOrShareCapturedPhoto() {
+      if (!capturedBlob) return;
+
+      const file = new File([capturedBlob], `pose-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+      // Preferred Mobile API: Web Share API
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'My Pose Photo',
+            text: 'Captured using Pose Cam app'
+          });
+          return;
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            console.warn("Share API failed, using download fallback", err);
+          } else {
+            return; // User cancelled share sheet
+          }
+        }
+      }
+
+      // Fallback: Direct Anchor Download / New Tab Stream
+      const url = URL.createObjectURL(capturedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pose-photo-${Date.now()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Friendly iOS Notification fallback explanation
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        alert("Image download initiated. If photo doesn't save to Photos directly, long-press the image preview and tap 'Save to Photos'.");
+      }
+    }
+
+    /* ==========================================================================
+       7. OVERLAY CONTROLS & CONTROLLER DRAWER
+       ========================================================================== */
+
+    function toggleOverlayControlsDrawer() {
+      const drawer = document.getElementById('overlay-controls-drawer');
+      drawer.classList.toggle('hidden');
+    }
+
+    function updateOverlayOpacity(val) {
+      overlayOpacity = parseFloat(val);
+      document.getElementById('val-opacity').innerText = `${Math.round(overlayOpacity * 100)}%`;
+      applyOverlayTransforms();
+    }
+
+    function updateOverlayScale(val) {
+      overlayScale = parseFloat(val);
+      document.getElementById('val-scale').innerText = `${Math.round(overlayScale * 100)}%`;
+      applyOverlayTransforms();
+    }
+
+    function toggleOverlayMirror() {
+      overlayMirrored = !overlayMirrored;
+      applyOverlayTransforms();
+    }
+
+    function toggleOverlayLock() {
+      overlayLocked = !overlayLocked;
+      const icon = document.getElementById('icon-lock');
+      if (overlayLocked) {
+        icon.classList.add('text-indigo-400');
+      } else {
+        icon.classList.remove('text-indigo-400');
+      }
+    }
+
+    function applyOverlayTransforms() {
+      const img = document.getElementById('pose-overlay-img');
+      img.style.opacity = overlayOpacity;
+      
+      let transform = `scale(${overlayScale})`;
+      if (overlayMirrored) transform += ` scaleX(-1)`;
+
+      img.style.transform = transform;
+    }
+
+    /* ==========================================================================
+       8. ON-DEVICE AI POSE ASSISTANT ENGINE (MediaPipe)
+       ========================================================================== */
+
+    function initAIPoseDetector() {
+      if (typeof Pose === 'undefined') {
+        console.warn("MediaPipe Pose CDN not loaded or unavailable.");
+        return;
+      }
+
+      try {
+        poseDetector = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
         });
 
-        // Capture Photo (Full Quality without overlay)
-        shutterBtn.addEventListener('click', () => {
-            const captureCanvas = document.getElementById('capture-canvas');
-            const captureCtx = captureCanvas.getContext('2d');
-
-            // Set capture canvas to match full video resolution
-            captureCanvas.width = video.videoWidth;
-            captureCanvas.height = video.videoHeight;
-
-            // Draw current video frame to capture canvas
-            captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-
-            // Export to downloadable image
-            const imageUrl = captureCanvas.toDataURL('image/jpeg', 1.0);
-            const downloadLink = document.createElement('a');
-            downloadLink.href = imageUrl;
-            downloadLink.download = `photo_${Date.now()}.jpg`;
-            downloadLink.click();
+        poseDetector.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          enableSegmentation: false,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
         });
 
-        // Handle Add to Home Screen (PWA Install Prompt)
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            installBtn.style.display = 'block';
-        });
+        poseDetector.onResults(onAIPoseResults);
+      } catch (e) {
+        console.warn("AI Initialization error:", e);
+      }
+    }
 
-        installBtn.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    installBtn.style.display = 'none';
-                }
-                deferredPrompt = null;
-            }
-        });
+    function toggleAIPoseAssistant(enabled) {
+      aiEnabled = enabled;
+      const feedbackPill = document.getElementById('ai-feedback-pill');
+      const canvas = document.getElementById('ai-canvas');
 
-        window.addEventListener('resize', resizeCanvas);
-        window.addEventListener('load', startCamera);
-    </script>
+      if (aiEnabled) {
+        feedbackPill.classList.remove('hidden');
+        processAIFrames();
+      } else {
+        feedbackPill.classList.add('hidden');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    async function processAIFrames() {
+      if (!aiEnabled || !mediaStream) return;
+      const video = document.getElementById('webcam');
+
+      if (video.readyState >= 2 && poseDetector) {
+        await poseDetector.send({ image: video });
+      }
+
+      if (aiEnabled) {
+        requestAnimationFrame(processAIFrames);
+      }
+    }
+
+    function onAIPoseResults(results) {
+      if (!aiEnabled) return;
+
+      const canvas = document.getElementById('ai-canvas');
+      const video = document.getElementById('webcam');
+      
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!results.poseLandmarks) {
+        updateAIFeedback("Position body in frame");
+        return;
+      }
+
+      // Draw Key Joints
+      ctx.fillStyle = '#6366f1';
+      results.poseLandmarks.forEach((lm) => {
+        ctx.beginPath();
+        ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 4, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      // Analyze Body Position & Provide Live Guidance Hints
+      const nose = results.poseLandmarks[0];
+      const leftShoulder = results.poseLandmarks[11];
+      const rightShoulder = results.poseLandmarks[12];
+
+      if (nose) {
+        if (nose.x < 0.35) {
+          updateAIFeedback("Move slightly right →");
+        } else if (nose.x > 0.65) {
+          updateAIFeedback("← Move slightly left");
+        } else if (leftShoulder && rightShoulder) {
+          const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+          if (shoulderWidth < 0.18) {
+            updateAIFeedback("Step closer to camera");
+          } else if (shoulderWidth > 0.55) {
+            updateAIFeedback("Step farther back");
+          } else {
+            updateAIFeedback("Pose matched ✓");
+          }
+        } else {
+          updateAIFeedback("Center yourself");
+        }
+      }
+    }
+
+    function updateAIFeedback(msg) {
+      document.getElementById('ai-feedback-text').innerText = msg;
+    }
+  </script>
 </body>
 </html>
